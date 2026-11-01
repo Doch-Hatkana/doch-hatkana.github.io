@@ -106,6 +106,13 @@
   .branch{display:none}
   .branch.on{display:block}
 
+  /* Yes/no question blocks (built from QUESTIONS in the script) */
+  .q{border-top:1px solid var(--line);padding-top:14px;margin-top:4px}
+  .q:first-of-type{border-top:0;padding-top:0;margin-top:0}
+  .q .qt{font-size:13px;font-weight:700;color:var(--steel);margin:0 0 2px}
+  .q .field{margin-bottom:10px}
+  .q textarea{min-height:56px}
+
   /* Photos */
   .photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
   .photos figure{margin:0;position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
@@ -306,34 +313,7 @@
     <!-- Branch: villa -->
     <fieldset class="branch" data-branch="וילה">
       <legend><span class="n">3</span>פרטי התקנה בווילה</legend>
-      <div class="field">
-        <label class="lbl" for="v_floors">מספר קומות בבית</label>
-        <input type="number" id="v_floors" name="v_floors" data-label="מספר קומות בבית" inputmode="numeric" min="1">
-      </div>
-      <div class="row">
-        <div class="field">
-          <label class="lbl" for="v_in">נקודות פנים</label>
-          <input type="number" id="v_in" name="v_in" data-label="נקודות פנים" inputmode="numeric" min="0">
-        </div>
-        <div class="field">
-          <label class="lbl" for="v_out">נקודות חוץ</label>
-          <input type="number" id="v_out" name="v_out" data-label="נקודות חוץ" inputmode="numeric" min="0">
-        </div>
-      </div>
-      <div class="field">
-        <span class="lbl">הותקנה רשת Mesh</span>
-        <div class="chips">
-          <input type="radio" name="v_mesh" id="v_mesh1" value="כן" data-label="הותקנה רשת Mesh"><label for="v_mesh1">כן</label>
-          <input type="radio" name="v_mesh" id="v_mesh2" value="לא" data-label="הותקנה רשת Mesh"><label for="v_mesh2">לא</label>
-        </div>
-      </div>
-      <div class="field">
-        <span class="lbl">בוצעה חפירה או קידוח</span>
-        <div class="chips">
-          <input type="radio" name="v_dig" id="v_dig1" value="כן" data-label="בוצעה חפירה או קידוח"><label for="v_dig1">כן</label>
-          <input type="radio" name="v_dig" id="v_dig2" value="לא" data-label="בוצעה חפירה או קידוח"><label for="v_dig2">לא</label>
-        </div>
-      </div>
+      <div class="qs"></div>
     </fieldset>
 
     <fieldset>
@@ -415,6 +395,22 @@
 const COMPANY = "שם החברה";      // shown at the top of the page and the PDF
 const MAX_PHOTOS = 4;
 
+// Yes/no questions for each installation type. Every question gets כן / לא (required)
+// and an optional description. qty: true adds a required quantity when the answer is כן.
+// pdf: the label used in the PDF when the title has brackets (they come out flipped there).
+const QUESTIONS = {
+  "וילה": [
+    { title: "התקנת סיב בווילה", ask: "האם היה קיים סיב בווילה?" },
+    { title: "טיפול חשמלאי", ask: "האם בוצע טיפול חשמלאי?" },
+    { title: "קריאת שירות: החלפת סיב", ask: "האם בוצעה החלפה של סיב קיים?" },
+    { title: "קריאת שירות: תקלת תשתית", ask: "האם מדובר בתקלת תשתית?" },
+    { title: "הזזת שקע סיב למיקום אחר (בחיוב לקוח)", pdf: "הזזת שקע סיב, בחיוב לקוח", ask: "האם בוצעה הזזת שקע?" },
+    { title: "התקנת כבל רשת", ask: "האם הותקן כבל רשת?", qty: true },
+    { title: "התקנת מגדיל טווח", ask: "האם הותקן מגדיל טווח?", qty: true },
+    { title: "מכירת מגדיל טווח", ask: "האם נמכר מגדיל טווח במעמד ההתקנה?" },
+  ],
+};
+
 /* ---------- Basics ---------- */
 const $ = (s, r = document) => r.querySelector(s);
 const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
@@ -455,13 +451,48 @@ function updateBranch() {
 }
 $$('input[name="type"]').forEach(r => r.addEventListener("change", updateBranch));
 
+let qn = 0;
+for (const [type, list] of Object.entries(QUESTIONS)) {
+  const box = $(`.branch[data-branch="${type}"] .qs`);
+  box.innerHTML = list.map(q => {
+    const id = "q" + (++qn);
+    return `<div class="q" data-q="${id}" data-label="${esc(q.pdf || q.title)}">
+      <p class="qt">${esc(q.title)}</p>
+      <div class="field" data-req data-radio="${id}">
+        <span class="lbl req">${esc(q.ask)}</span>
+        <div class="chips">
+          <input type="radio" name="${id}" id="${id}y" value="כן"><label for="${id}y">כן</label>
+          <input type="radio" name="${id}" id="${id}n" value="לא"><label for="${id}n">לא</label>
+        </div>
+        <p class="err">יש לבחור כן או לא</p>
+      </div>
+      ${q.qty ? `<div class="field" data-req hidden>
+        <label class="lbl req" for="${id}_qty">כמות</label>
+        <input type="number" id="${id}_qty" inputmode="numeric" min="1">
+        <p class="err">יש לציין כמות</p>
+      </div>` : ""}
+      <div class="field">
+        <textarea id="${id}_desc" rows="2" placeholder="תיאור (לא חובה)" aria-label="תיאור: ${esc(q.title)}"></textarea>
+      </div>
+    </div>`;
+  }).join("");
+}
+// The quantity box only shows (and only counts) when the answer is כן.
+function syncQty() {
+  $$(".q").forEach(q => {
+    const box = $(`#${q.dataset.q}_qty`)?.closest(".field");
+    if (box) box.hidden = ($(`input[name="${q.dataset.q}"]:checked`) || {}).value !== "כן";
+  });
+}
+form.addEventListener("change", syncQty);
+
 /* ---------- Validation ---------- */
 function validate() {
   let first = null;
   $$("[data-req]").forEach(f => {
     let ok;
-    // questions of the installation type that wasn't chosen are hidden and don't count
-    if (f.closest(".branch:not(.on)")) ok = true;
+    // hidden questions (other installation type, quantity after לא) don't count
+    if (f.closest(".branch:not(.on), [hidden]")) ok = true;
     else if (f.dataset.radio) ok = !!$(`input[name="${f.dataset.radio}"]:checked`);
     else ok = $("input,select,textarea", f).value.trim() !== "";
     f.classList.toggle("invalid", !ok);
@@ -607,7 +638,13 @@ function branchPairs(t) {
   const pairs = [];
   const seen = new Set();
   $$("[data-label]", fs).forEach(el => {
-    if (el.type === "radio") {
+    if (el.dataset.q) {
+      const id = el.dataset.q;
+      const ans = ($(`input[name="${id}"]:checked`) || {}).value || "";
+      const qty = ans === "כן" ? val(id + "_qty") : "";
+      const desc = val(id + "_desc");
+      pairs.push([el.dataset.label, [ans + (qty ? ", כמות: " + qty : ""), desc].filter(Boolean).join("\n")]);
+    } else if (el.type === "radio") {
       if (seen.has(el.name)) return;
       seen.add(el.name);
       const c = $(`input[name="${el.name}"]:checked`, fs);
@@ -775,7 +812,7 @@ $("#clearYes").addEventListener("click", () => {
   photos = []; renderPhotos();
   clearSig();
   $$(".invalid").forEach(f => f.classList.remove("invalid"));
-  newReportNo(); updateBranch(); hideNotice();
+  newReportNo(); updateBranch(); syncQty(); hideNotice();
   dlg.classList.remove("on");
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
