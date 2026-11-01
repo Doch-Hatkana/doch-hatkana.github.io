@@ -222,13 +222,14 @@
       <legend><span class="n">1</span>פרטי העבודה</legend>
       <div class="row">
         <div class="field" data-req>
-          <label class="lbl req" for="installer">שם המתקין</label>
+          <label class="lbl req" for="installer">שם המתקין (שם מלא)</label>
           <input type="text" id="installer" name="installer" autocomplete="name">
           <p class="err">יש למלא את שם המתקין</p>
         </div>
-        <div class="field">
-          <label class="lbl" for="date">תאריך ההתקנה</label>
+        <div class="field" data-req>
+          <label class="lbl req" for="date">תאריך ההתקנה</label>
           <input type="date" id="date" name="date">
+          <p class="err">יש לבחור תאריך</p>
         </div>
       </div>
       <div class="row">
@@ -237,15 +238,23 @@
           <input type="text" id="customer" name="customer">
           <p class="err">יש למלא את שם הלקוח</p>
         </div>
-        <div class="field">
-          <label class="lbl" for="phone">טלפון הלקוח</label>
-          <input type="tel" id="phone" name="phone" inputmode="tel" dir="ltr" style="text-align:right">
+        <div class="field" data-req>
+          <label class="lbl req" for="custNo">מספר לקוח</label>
+          <input type="text" id="custNo" name="custNo" dir="ltr" style="text-align:right">
+          <p class="err">יש למלא את מספר הלקוח</p>
         </div>
       </div>
-      <div class="field" data-req>
-        <label class="lbl req" for="address">כתובת ההתקנה</label>
-        <input type="text" id="address" name="address" placeholder="רחוב, מספר, עיר">
-        <p class="err">יש למלא את כתובת ההתקנה</p>
+      <div class="row">
+        <div class="field" data-req>
+          <label class="lbl req" for="city">עיר</label>
+          <input type="text" id="city" name="city">
+          <p class="err">יש למלא את העיר</p>
+        </div>
+        <div class="field" data-req>
+          <label class="lbl req" for="street">רחוב ומספר בית</label>
+          <input type="text" id="street" name="street" placeholder="למשל: הרצל 10">
+          <p class="err">יש למלא את הרחוב</p>
+        </div>
       </div>
     </fieldset>
 
@@ -253,52 +262,11 @@
       <legend><span class="n">2</span>סוג ההתקנה</legend>
       <div class="field" data-req data-radio="type">
         <div class="chips" role="radiogroup" aria-label="סוג ההתקנה">
-          <input type="radio" name="type" id="t-fiber" value="סיב"><label for="t-fiber">סיב</label>
-          <input type="radio" name="type" id="t-apt" value="דירה"><label for="t-apt">דירה</label>
           <input type="radio" name="type" id="t-villa" value="וילה"><label for="t-villa">וילה</label>
+          <input type="radio" name="type" id="t-apt" value="דירה"><label for="t-apt">דירה</label>
         </div>
         <p class="err">יש לבחור סוג התקנה</p>
         <p class="hint">השאלות בשלב הבא משתנות לפי הבחירה.</p>
-      </div>
-    </fieldset>
-
-    <!-- Branch: fiber -->
-    <fieldset class="branch" data-branch="סיב">
-      <legend><span class="n">3</span>פרטי התקנת סיב</legend>
-      <div class="field">
-        <label class="lbl" for="f_line">מספר מנוי / מזהה קו</label>
-        <input type="text" id="f_line" name="f_line" data-label="מספר מנוי / מזהה קו" dir="ltr" style="text-align:right">
-      </div>
-      <div class="field">
-        <label class="lbl" for="f_entry">נקודת כניסה</label>
-        <select id="f_entry" name="f_entry" data-label="נקודת כניסה">
-          <option value="">בחירה</option>
-          <option>עמוד</option>
-          <option>תת-קרקעי</option>
-          <option>ארון תקשורת בבניין</option>
-        </select>
-      </div>
-      <div class="field">
-        <label class="lbl" for="f_cable">אורך כבל שנפרס (מטר)</label>
-        <input type="number" id="f_cable" name="f_cable" data-label="אורך כבל שנפרס במטרים" inputmode="numeric" min="0">
-      </div>
-      <div class="field">
-        <span class="lbl">ציוד קצה שהותקן</span>
-        <div class="chips">
-          <input type="radio" name="f_cpe" id="f_cpe1" value="ONT" data-label="ציוד קצה שהותקן"><label for="f_cpe1">ONT</label>
-          <input type="radio" name="f_cpe" id="f_cpe2" value="ראוטר" data-label="ציוד קצה שהותקן"><label for="f_cpe2">ראוטר</label>
-          <input type="radio" name="f_cpe" id="f_cpe3" value="ONT + ראוטר" data-label="ציוד קצה שהותקן"><label for="f_cpe3">שניהם</label>
-        </div>
-      </div>
-      <div class="row">
-        <div class="field">
-          <label class="lbl" for="f_down">מהירות הורדה (Mbps)</label>
-          <input type="number" id="f_down" name="f_down" data-label="מהירות הורדה ב-Mbps" inputmode="decimal" min="0">
-        </div>
-        <div class="field">
-          <label class="lbl" for="f_up">מהירות העלאה (Mbps)</label>
-          <input type="number" id="f_up" name="f_up" data-label="מהירות העלאה ב-Mbps" inputmode="decimal" min="0">
-        </div>
       </div>
     </fieldset>
 
@@ -306,9 +274,10 @@
     <fieldset class="branch" data-branch="דירה">
       <legend><span class="n">3</span>פרטי התקנה בדירה</legend>
       <div class="row">
-        <div class="field">
-          <label class="lbl" for="a_floor">קומה</label>
+        <div class="field" data-req>
+          <label class="lbl req" for="a_floor">קומה</label>
           <input type="number" id="a_floor" name="a_floor" data-label="קומה" inputmode="numeric">
+          <p class="err">יש למלא את מספר הקומה</p>
         </div>
         <div class="field">
           <label class="lbl" for="a_unit">מספר דירה</label>
@@ -491,7 +460,9 @@ function validate() {
   let first = null;
   $$("[data-req]").forEach(f => {
     let ok;
-    if (f.dataset.radio) ok = !!$(`input[name="${f.dataset.radio}"]:checked`);
+    // questions of the installation type that wasn't chosen are hidden and don't count
+    if (f.closest(".branch:not(.on)")) ok = true;
+    else if (f.dataset.radio) ok = !!$(`input[name="${f.dataset.radio}"]:checked`);
     else ok = $("input,select,textarea", f).value.trim() !== "";
     f.classList.toggle("invalid", !ok);
     if (!ok && !first) first = f;
@@ -659,8 +630,9 @@ function buildDoc() {
     ["תאריך ההתקנה", fmtDate(val("date"))],
     ["שם המתקין", val("installer")],
     ["שם הלקוח", val("customer")],
-    ["טלפון הלקוח", val("phone")],
-    ["כתובת ההתקנה", val("address")],
+    ["מספר לקוח", val("custNo")],
+    ["עיר", val("city")],
+    ["רחוב", val("street")],
     ["סוג ההתקנה", t],
   ])}</div>`);
   const b = rows(branchPairs(t));
