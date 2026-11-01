@@ -276,12 +276,17 @@
     <fieldset>
       <legend><span class="n" id="n4">3</span>סיכום העבודה</legend>
       <div class="field">
-        <label class="lbl" for="equipment">ציוד שהותקן ומספרים סידוריים</label>
-        <textarea id="equipment" name="equipment" placeholder="פריט אחד בכל שורה"></textarea>
-      </div>
-      <div class="field">
         <label class="lbl" for="notes">הערות</label>
         <textarea id="notes" name="notes" placeholder="מה נשאר לעשות, תקלות, בקשות של הלקוח"></textarea>
+      </div>
+      <div class="field" data-req data-radio="status">
+        <span class="lbl req">סטטוס העבודה</span>
+        <div class="chips">
+          <input type="radio" name="status" id="s1" value="הושלמה"><label for="s1">הושלמה</label>
+          <input type="radio" name="status" id="s2" value="הושלמה חלקית"><label for="s2">חלקית</label>
+          <input type="radio" name="status" id="s3" value="לא הושלמה"><label for="s3">לא הושלמה</label>
+        </div>
+        <p class="err">יש לבחור סטטוס</p>
       </div>
     </fieldset>
 
@@ -505,11 +510,10 @@ function buildDoc() {
   ])}</div>`);
   const b = rows(branchPairs(t));
   if (b) parts.push(`<div class="avoid"><h2>פרטי התקנה: ${esc(t)}</h2>${b}</div>`);
-  const sum = rows([
-    ["ציוד ומספרים סידוריים", val("equipment")],
+  parts.push(`<div class="avoid"><h2>סיכום העבודה</h2>${rows([
     ["הערות", val("notes")],
-  ]);
-  if (sum) parts.push(`<div class="avoid"><h2>סיכום העבודה</h2>${sum}</div>`);
+    ["סטטוס העבודה", ($('input[name="status"]:checked') || {}).value || ""],
+  ])}</div>`);
   parts.push(`<div class="foot">הפרטים בדוח נאספו לצורך תיעוד ההתקנה ומתן שירות ללקוח. נוצר בתאריך ${esc($("#todayLbl").textContent)}.</div>`);
   const doc = document.createElement("div");
   doc.className = "doc";
