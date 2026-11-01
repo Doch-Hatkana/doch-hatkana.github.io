@@ -423,7 +423,7 @@
 <div class="bar">
   <div class="wrap">
     <button type="button" class="btn secondary" id="clearBtn">ניקוי</button>
-    <button type="button" class="btn primary" id="pdfBtn">הורדת PDF</button>
+    <button type="button" class="btn primary" id="pdfBtn">הורדה ושיתוף</button>
   </div>
 </div>
 
@@ -743,14 +743,23 @@ function canShareFile(blob, name) {
     return !!(navigator.canShare && navigator.canShare({ files: [f] }));
   } catch (_) { return false; }
 }
+// Returns "shared", "closed" (user dismissed the sheet), "blocked" (the phone refused
+// because too long passed since the tap) or "failed".
 async function shareFile() {
   try {
     const f = new File([lastBlob], lastName, { type: "application/pdf" });
     await navigator.share({ files: [f], title: lastName });
+    return "shared";
   } catch (e) {
-    if (e && e.name === "AbortError") return; // user closed the share sheet
-    showNotice("bad", "השיתוף לא נפתח", `<p>אפשר לשלוח את הקובץ שהורד בדרך הרגילה:</p>${sendSteps}`);
+    if (e && e.name === "AbortError") return "closed";
+    if (e && e.name === "NotAllowedError") return "blocked";
+    return "failed";
   }
+}
+async function shareAgain() {
+  const r = await shareFile();
+  if (r === "blocked" || r === "failed")
+    showNotice("bad", "השיתוף לא נפתח", `<p>אפשר לשלוח את הקובץ שהורד בדרך הרגילה:</p>${sendSteps}`);
 }
 
 $("#pdfBtn").addEventListener("click", async () => {
@@ -761,21 +770,25 @@ $("#pdfBtn").addEventListener("click", async () => {
   try {
     lastBlob = await makePdfBlob();
     lastName = fileName();
-    directDownload(lastBlob, lastName);
     const share = canShareFile(lastBlob, lastName);
+    // Phones only open the share sheet shortly after a tap, so it goes before the download.
+    // If the phone refuses, the notice below offers it again with one more tap.
+    const result = share ? await shareFile() : "";
+    directDownload(lastBlob, lastName);
     showNotice("ok", "הקובץ מוכן",
       "<p>קובץ ה-PDF נשמר בהורדות של המכשיר.</p>" +
-      (share ? `<p>הכי מהיר: שליחה ישירה לקבוצה.</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שליחה בוואטסאפ</button></div>`
-             : `<p>שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`));
+      (share && result !== "failed"
+        ? `<p>${result === "shared" ? "לא נשלח? אפשר לפתוח שוב את השיתוף." : "שליחה ישירה לקבוצה:"}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שליחה בוואטסאפ</button></div>`
+        : `<p>שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`));
     const sb = $("#shareBtn");
-    if (sb) sb.addEventListener("click", shareFile);
+    if (sb) sb.addEventListener("click", shareAgain);
   } catch (e) {
     showNotice("bad", "לא הצלחנו ליצור את הקובץ",
       e && e.message === "lib"
         ? "<p>רכיב יצירת ה-PDF לא נטען. בדקו את החיבור לאינטרנט ורעננו את הדף. הנתונים שמילאתם יימחקו ברענון.</p>"
         : "<p>נסו שוב. אם זה חוזר, הסירו תמונות ונסו שוב.</p>");
   } finally {
-    btn.disabled = false; btn.textContent = "הורדת PDF";
+    btn.disabled = false; btn.textContent = "הורדה ושיתוף";
   }
 });
 
