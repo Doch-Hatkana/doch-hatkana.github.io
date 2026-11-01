@@ -112,6 +112,7 @@
   .q .qt{font-size:13px;font-weight:700;color:var(--steel);margin:0 0 2px}
   .q .field{margin-bottom:10px}
   .q textarea{min-height:56px}
+  .row + .qs{border-top:1px solid var(--line);padding-top:14px}
 
   /* Photos */
   .photos{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
@@ -291,23 +292,7 @@
           <input type="text" id="a_unit" name="a_unit" data-label="מספר דירה">
         </div>
       </div>
-      <div class="field">
-        <label class="lbl" for="a_cabinet">מיקום ארון התקשורת</label>
-        <input type="text" id="a_cabinet" name="a_cabinet" data-label="מיקום ארון התקשורת" placeholder="למשל: מסדרון, ליד הכניסה">
-      </div>
-      <div class="field">
-        <label class="lbl" for="a_points">מספר נקודות רשת שהותקנו</label>
-        <input type="number" id="a_points" name="a_points" data-label="מספר נקודות רשת שהותקנו" inputmode="numeric" min="0">
-      </div>
-      <div class="field">
-        <label class="lbl" for="a_route">דרך החיווט</label>
-        <select id="a_route" name="a_route" data-label="דרך החיווט">
-          <option value="">בחירה</option>
-          <option>צנרת קיימת</option>
-          <option>תעלה חיצונית</option>
-          <option>שילוב של שתיהן</option>
-        </select>
-      </div>
+      <div class="qs"></div>
     </fieldset>
 
     <!-- Branch: villa -->
@@ -401,6 +386,16 @@ const MAX_PHOTOS = 4;
 const QUESTIONS = {
   "וילה": [
     { title: "התקנת סיב בווילה", ask: "האם היה קיים סיב בווילה?" },
+    { title: "טיפול חשמלאי", ask: "האם בוצע טיפול חשמלאי?" },
+    { title: "קריאת שירות: החלפת סיב", ask: "האם בוצעה החלפה של סיב קיים?" },
+    { title: "קריאת שירות: תקלת תשתית", ask: "האם מדובר בתקלת תשתית?" },
+    { title: "הזזת שקע סיב למיקום אחר (בחיוב לקוח)", pdf: "הזזת שקע סיב, בחיוב לקוח", ask: "האם בוצעה הזזת שקע?" },
+    { title: "התקנת כבל רשת", ask: "האם הותקן כבל רשת?", qty: true },
+    { title: "התקנת מגדיל טווח", ask: "האם הותקן מגדיל טווח?", qty: true },
+    { title: "מכירת מגדיל טווח", ask: "האם נמכר מגדיל טווח במעמד ההתקנה?" },
+  ],
+  "דירה": [
+    { title: "התקנת סיב בדירה", ask: "האם היה קיים סיב בדירה?" },
     { title: "טיפול חשמלאי", ask: "האם בוצע טיפול חשמלאי?" },
     { title: "קריאת שירות: החלפת סיב", ask: "האם בוצעה החלפה של סיב קיים?" },
     { title: "קריאת שירות: תקלת תשתית", ask: "האם מדובר בתקלת תשתית?" },
