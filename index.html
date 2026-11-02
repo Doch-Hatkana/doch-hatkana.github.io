@@ -322,9 +322,11 @@ const COMPANY = "שם החברה";      // shown at the top of the page and the 
 // Yes/no questions for each installation type. Every question gets כן / לא (required)
 // and an optional description. qty: true adds a required quantity when the answer is כן.
 // pdf: the label used in the PDF when the title has brackets (they come out flipped there).
+// csv: the column name in the office data file, when it should differ from the title, so the
+// same question gets one column for both installation types.
 const QUESTIONS = {
   "וילה": [
-    { title: "התקנת סיב בווילה", ask: "האם היה קיים סיב בווילה?" },
+    { title: "התקנת סיב בווילה", csv: "סיב קיים", ask: "האם היה קיים סיב בווילה?" },
     { title: "טיפול חשמלאי", ask: "האם בוצע טיפול חשמלאי?" },
     { title: "קריאת שירות: החלפת סיב", ask: "האם בוצעה החלפה של סיב קיים?" },
     { title: "קריאת שירות: תקלת תשתית", ask: "האם מדובר בתקלת תשתית?" },
@@ -334,7 +336,7 @@ const QUESTIONS = {
     { title: "מכירת מגדיל טווח", ask: "האם נמכר מגדיל טווח במעמד ההתקנה?" },
   ],
   "דירה": [
-    { title: "התקנת סיב בדירה", ask: "האם היה קיים סיב בדירה?" },
+    { title: "התקנת סיב בדירה", csv: "סיב קיים", ask: "האם היה קיים סיב בדירה?" },
     { title: "טיפול חשמלאי", ask: "האם בוצע טיפול חשמלאי?" },
     { title: "קריאת שירות: החלפת סיב", ask: "האם בוצעה החלפה של סיב קיים?" },
     { title: "קריאת שירות: תקלת תשתית", ask: "האם מדובר בתקלת תשתית?" },
@@ -387,7 +389,7 @@ let qn = 0;
 for (const [type, list] of Object.entries(QUESTIONS)) {
   const box = $(`.branch[data-branch="${type}"] .qs`);
   box.innerHTML = list.map(q => {
-    const id = "q" + (++qn);
+    const id = q.id = "q" + (++qn);
     return `<div class="q" data-q="${id}" data-label="${esc(q.pdf || q.title)}">
       <p class="qt">${esc(q.title)}</p>
       <div class="field" data-req data-radio="${id}">
@@ -522,7 +524,7 @@ function buildDoc() {
 }
 function fileName() {
   const c = val("customer").replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, "-") || "לקוח";
-  return `דוח-התקנה-${c}-${reportNo}.pdf`;
+  return `דוח-התקנה-${c}-${reportNo}`;
 }
 async function makePdfBlob() {
   if (typeof html2pdf === "undefined") throw new Error("lib");
@@ -556,7 +558,48 @@ async function makePdfBlob() {
   }
 }
 
-/* ---------- Deliver the file ---------- */
+/* ---------- Data file (CSV) for the office ---------- */
+// A header row and one row for this report. Every report has the same columns (questions
+// are matched by column name across installation types), so the office can stack the
+// files into one Excel sheet. The leading BOM makes Excel read the Hebrew correctly.
+function buildCsv() {
+  const t = currentType();
+  const cols = [
+    ["מספר דוח", reportNo],
+    ["תאריך ההתקנה", fmtDate(val("date"))],
+    ["שם המתקין", val("installer")],
+    ["שם הלקוח", val("customer")],
+    ["מספר לקוח", val("custNo")],
+    ["עיר", val("city")],
+    ["רחוב", val("street")],
+    ["סוג ההתקנה", t],
+    ["קומה", t === "דירה" ? val("a_floor") : ""],
+    ["מספר דירה", t === "דירה" ? val("a_unit") : ""],
+  ];
+  const colName = q => q.csv || q.pdf || q.title;
+  const all = new Map(); // column name -> has a quantity
+  for (const list of Object.values(QUESTIONS))
+    for (const q of list) all.set(colName(q), all.get(colName(q)) || !!q.qty);
+  const mine = new Map((QUESTIONS[t] || []).map(q => [colName(q), q.id]));
+  for (const [name, qty] of all) {
+    const id = mine.get(name);
+    const ans = id ? ($(`input[name="${id}"]:checked`) || {}).value || "" : "";
+    cols.push([name, ans]);
+    if (qty) cols.push([name + " - כמות", ans === "כן" ? val(id + "_qty") : ""]);
+    cols.push([name + " - תיאור", id ? val(id + "_desc") : ""]);
+  }
+  cols.push(["הערות", val("notes")]);
+  cols.push(["סטטוס העבודה", ($('input[name="status"]:checked') || {}).value || ""]);
+  // Quote every cell; a leading ' stops Excel from treating text like "=..." as a formula.
+  const cell = v => {
+    let x = String(v);
+    if (/^[=+@\t\r]|^-(?!\d)/.test(x)) x = "'" + x;
+    return '"' + x.replace(/"/g, '""') + '"';
+  };
+  return "\uFEFF" + [cols.map(c => cell(c[0])), cols.map(c => cell(c[1]))].map(r => r.join(",")).join("\r\n") + "\r\n";
+}
+
+/* ---------- Deliver the files ---------- */
 function directDownload(blob, name) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -568,22 +611,23 @@ function directDownload(blob, name) {
 const sendSteps = `<ol>
   <li>פותחים את וואטסאפ ונכנסים לקבוצה.</li>
   <li>לוחצים על סמל הצירוף (📎) ובוחרים <b>מסמך</b>.</li>
-  <li>בוחרים את הקובץ מתיקיית ההורדות ושולחים.</li>
+  <li>בוחרים את הקבצים מתיקיית ההורדות ושולחים.</li>
 </ol>`;
 
-let lastBlob = null, lastName = "";
-function canShareFile(blob, name) {
-  try {
-    const f = new File([blob], name, { type: "application/pdf" });
-    return !!(navigator.canShare && navigator.canShare({ files: [f] }));
-  } catch (_) { return false; }
+let shareFiles = [];
+// The files the phone lets us share: both, the PDF alone (some phones refuse the CSV), or none.
+function shareable(files) {
+  if (!navigator.canShare) return [];
+  for (const set of [files, files.slice(0, 1)]) {
+    try { if (navigator.canShare({ files: set })) return set; } catch (_) {}
+  }
+  return [];
 }
 // Returns "shared", "closed" (user dismissed the sheet), "blocked" (the phone refused
 // because too long passed since the tap) or "failed".
 async function shareFile() {
   try {
-    const f = new File([lastBlob], lastName, { type: "application/pdf" });
-    await navigator.share({ files: [f], title: lastName });
+    await navigator.share({ files: shareFiles, title: shareFiles[0].name });
     return "shared";
   } catch (e) {
     if (e && e.name === "AbortError") return "closed";
@@ -593,32 +637,40 @@ async function shareFile() {
 }
 async function shareAgain() {
   const r = await shareFile();
-  if (r === "blocked" || r === "failed")
-    showNotice("bad", "השיתוף לא נפתח", `<p>אפשר לשלוח את הקובץ שהורד בדרך הרגילה:</p>${sendSteps}`);
+  if (r === "blocked" || r === "failed") {
+    // only the PDF was downloaded so far; save the CSV too so it can be sent by hand
+    shareFiles.slice(1).forEach(f => directDownload(f, f.name));
+    showNotice("bad", "השיתוף לא נפתח", `<p>אפשר לשלוח את הקבצים שהורדו בדרך הרגילה:</p>${sendSteps}`);
+  }
 }
 
 $("#pdfBtn").addEventListener("click", async () => {
   hideNotice();
   if (!validate()) return;
   const btn = $("#pdfBtn");
-  btn.disabled = true; btn.textContent = "מכין את הקובץ…";
+  btn.disabled = true; btn.textContent = "מכין את הקבצים…";
   try {
-    lastBlob = await makePdfBlob();
-    lastName = fileName();
-    const share = canShareFile(lastBlob, lastName);
-    // Phones only open the share sheet shortly after a tap, so it goes before the download.
+    const base = fileName();
+    const pdf = new File([await makePdfBlob()], base + ".pdf", { type: "application/pdf" });
+    const csv = new File([buildCsv()], base + ".csv", { type: "text/csv" });
+    shareFiles = shareable([pdf, csv]);
+    // Phones only open the share sheet shortly after a tap, so it goes before the downloads.
     // If the phone refuses, the notice below offers it again with one more tap.
-    const result = share ? await shareFile() : "";
-    directDownload(lastBlob, lastName);
-    showNotice("ok", "הקובץ מוכן",
-      "<p>קובץ ה-PDF נשמר בהורדות של המכשיר.</p>" +
-      (share && result !== "failed"
+    const result = shareFiles.length ? await shareFile() : "";
+    // Keep a copy on the device: always the PDF, and the CSV when it wasn't handed to the share sheet.
+    const csvSaved = !shareFiles.includes(csv) || result === "failed";
+    directDownload(pdf, pdf.name);
+    if (csvSaved) directDownload(csv, csv.name);
+    showNotice("ok", "הקבצים מוכנים",
+      `<p>${csvSaved ? "קובץ ה-PDF וקובץ הנתונים (CSV) נשמרו" : "קובץ ה-PDF נשמר"} בהורדות של המכשיר.</p>` +
+      (shareFiles.length === 1 ? "<p>הטלפון הזה לא מאפשר לשתף את קובץ הנתונים (CSV), אז צריך לצרף אותו לקבוצה ידנית מההורדות.</p>" : "") +
+      (shareFiles.length && result !== "failed"
         ? `<p>${result === "shared" ? "לא נשלח? אפשר לפתוח שוב את השיתוף." : "שליחה ישירה לקבוצה:"}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שליחה בוואטסאפ</button></div>`
         : `<p>שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`));
     const sb = $("#shareBtn");
     if (sb) sb.addEventListener("click", shareAgain);
   } catch (e) {
-    showNotice("bad", "לא הצלחנו ליצור את הקובץ",
+    showNotice("bad", "לא הצלחנו ליצור את הקבצים",
       e && e.message === "lib"
         ? "<p>רכיב יצירת ה-PDF לא נטען. בדקו את החיבור לאינטרנט ורעננו את הדף. הנתונים שמילאתם יימחקו ברענון.</p>"
         : "<p>נסו שוב. אם זה חוזר, רעננו את הדף ומלאו מחדש.</p>");
