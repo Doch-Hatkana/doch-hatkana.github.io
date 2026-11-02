@@ -156,7 +156,7 @@
 
   /* PDF render target (A4 @ 96dpi = 794px wide) — kept off-screen */
   #pdfStage{position:fixed;top:0;left:-10000px;width:794px;pointer-events:none}
-  .doc{letter-spacing:.2px;width:794px;padding:44px 48px;background:#fff;color:#1A1A1A;font-family:"IBM Plex Sans Hebrew",Arial,sans-serif;font-size:14px;line-height:1.45;direction:rtl}
+  .doc{position:relative;letter-spacing:.2px;width:794px;padding:44px 48px;background:#fff;color:#1A1A1A;font-family:"IBM Plex Sans Hebrew",Arial,sans-serif;font-size:14px;line-height:1.45;direction:rtl}
   .doc .top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:4px solid #D61B5C;padding-bottom:14px;margin-bottom:18px}
   .doc .top .co{font-size:14px;color:#616161}
   .doc .top h1{font-size:26px;margin:2px 0 0}
@@ -546,8 +546,24 @@ function fileName() {
   const c = val("customer").replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, "-") || "לקוח";
   return `דוח-התקנה-${c}-${reportNo}`;
 }
+// Keep each .avoid block whole on one page by pushing it to the next page when it would be
+// cut. html2pdf can do this itself, but it measures against the screen, and on a phone (with
+// the keyboard open, for one) that pushed everything to page 2 and left page 1 blank.
+// Measuring inside the document gives the same result on every device.
+function addPageBreaks(doc, pageHeight) {
+  for (const block of $$(".avoid", doc)) {
+    const into = block.offsetTop % pageHeight;
+    if (block.offsetHeight <= pageHeight && into + block.offsetHeight > pageHeight) {
+      const gap = document.createElement("div");
+      gap.style.height = pageHeight - into + "px";
+      block.before(gap);
+    }
+  }
+}
 async function makePdfBlob() {
   if (typeof html2pdf === "undefined") throw new Error("lib");
+  // close the phone keyboard first, so the page isn't mid-scroll while it's captured
+  if (document.activeElement) document.activeElement.blur();
   const stage = $("#pdfStage");
   stage.innerHTML = "";
   const doc = buildDoc();
@@ -555,14 +571,16 @@ async function makePdfBlob() {
   // wait for embedded images to decode
   await Promise.all($$("img", doc).map(im => im.decode ? im.decode().catch(() => {}) : Promise.resolve()));
   try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch (_) {}
+  const margin = [8, 0, 10, 0]; // mm: top, left, bottom, right
+  addPageBreaks(doc, Math.floor(794 * (297 - margin[0] - margin[2]) / 210));
   const opt = {
-    margin: [8, 0, 10, 0],
+    margin,
     image: { type: "jpeg", quality: 0.92 },
     // x/y pin the capture to the page's top-left: html2pdf centres its copy of the page in
     // the real window, so on a wide screen the default capture point lands off to the side.
     html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff", windowWidth: 794, scrollX: 0, scrollY: 0, x: 0, y: 0 },
     jsPDF: { unit: "mm", format: "a4", orientation: "portrait" },
-    pagebreak: { mode: ["css", "legacy"], avoid: ".avoid" },
+    pagebreak: { mode: [] }, // page breaks are already in place (addPageBreaks)
   };
   // html2canvas mis-positions content in right-to-left pages, so render with an LTR root
   // (the document itself stays right-to-left through its own CSS).
