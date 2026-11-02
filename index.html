@@ -102,16 +102,14 @@
   .type-pick .chips label{font-size:19px;font-weight:700;min-height:64px}
   .type-pick .chips input:checked + label{background:var(--accent);border-color:var(--accent);color:#fff}
 
-  .branch{display:none}
-  .branch.on{display:block}
+  /* Parts of the form that depend on an earlier answer (see syncVisibility) */
+  [hidden]{display:none!important}
 
-  /* Yes/no question blocks (built from QUESTIONS in the script) */
+  /* Question blocks (built from QUESTIONS in the script) */
   .q{border-top:1px solid var(--line);padding-top:14px;margin-top:4px}
-  .q:first-of-type{border-top:0;padding-top:0;margin-top:0}
-  .q .qt{font-size:13px;font-weight:700;color:var(--steel);margin:0 0 2px}
+  .q.first{border-top:0;padding-top:0;margin-top:0}
   .q .field{margin-bottom:10px}
   .q textarea{min-height:56px}
-  .row + .qs{border-top:1px solid var(--line);padding-top:14px}
 
   .privacy{font-size:14px;color:var(--steel);margin:4px 2px 18px}
 
@@ -238,38 +236,42 @@
     </fieldset>
 
     <fieldset class="type-pick">
-      <legend><span class="n">2</span>סוג ההתקנה</legend>
+      <legend><span class="n">2</span>סוג העבודה</legend>
       <div class="field" data-req data-radio="type">
-        <div class="chips" role="radiogroup" aria-label="סוג ההתקנה">
+        <span class="lbl req">סוג הנכס</span>
+        <div class="chips" role="radiogroup" aria-label="סוג הנכס">
           <input type="radio" name="type" id="t-villa" value="וילה"><label for="t-villa">וילה</label>
           <input type="radio" name="type" id="t-apt" value="דירה"><label for="t-apt">דירה</label>
         </div>
-        <p class="err">יש לבחור סוג התקנה</p>
-        <p class="hint">השאלות בשלב הבא משתנות לפי הבחירה.</p>
+        <p class="err">יש לבחור וילה או דירה</p>
       </div>
-    </fieldset>
-
-    <!-- Branch: apartment -->
-    <fieldset class="branch" data-branch="דירה">
-      <legend><span class="n">3</span>פרטי התקנה בדירה</legend>
-      <div class="row">
+      <div class="row" data-when="type=דירה" hidden>
         <div class="field" data-req>
           <label class="lbl req" for="a_floor">קומה</label>
-          <input type="number" id="a_floor" name="a_floor" data-label="קומה" inputmode="numeric">
+          <input type="number" id="a_floor" name="a_floor" inputmode="numeric">
           <p class="err">יש למלא את מספר הקומה</p>
         </div>
         <div class="field">
           <label class="lbl" for="a_unit">מספר דירה</label>
-          <input type="text" id="a_unit" name="a_unit" data-label="מספר דירה">
+          <input type="text" id="a_unit" name="a_unit">
         </div>
       </div>
-      <div class="qs"></div>
+      <div class="field" data-req data-radio="job">
+        <span class="lbl req">התקנה או קריאת שירות</span>
+        <div class="chips" role="radiogroup" aria-label="התקנה או קריאת שירות">
+          <input type="radio" name="job" id="j-install" value="התקנה"><label for="j-install">התקנה</label>
+          <input type="radio" name="job" id="j-service" value="קריאת שירות"><label for="j-service">קריאת שירות</label>
+        </div>
+        <p class="err">יש לבחור התקנה או קריאת שירות</p>
+        <p class="hint">השאלות בשלב הבא משתנות לפי הבחירה.</p>
+      </div>
     </fieldset>
 
-    <!-- Branch: villa -->
-    <fieldset class="branch" data-branch="וילה">
-      <legend><span class="n">3</span>פרטי התקנה בווילה</legend>
-      <div class="qs"></div>
+    <fieldset data-when="job" hidden>
+      <legend><span class="n">3</span><span id="jobTitle"></span></legend>
+      <div class="qs" data-group="התקנה" data-when="job=התקנה" hidden></div>
+      <div class="qs" data-group="קריאת שירות" data-when="job=קריאת שירות" hidden></div>
+      <div class="qs" data-group="בשתיהן"></div>
     </fieldset>
 
     <fieldset>
@@ -277,15 +279,6 @@
       <div class="field">
         <label class="lbl" for="notes">הערות</label>
         <textarea id="notes" name="notes" placeholder="מה נשאר לעשות, תקלות, בקשות של הלקוח"></textarea>
-      </div>
-      <div class="field" data-req data-radio="status">
-        <span class="lbl req">סטטוס העבודה</span>
-        <div class="chips">
-          <input type="radio" name="status" id="s1" value="הושלמה"><label for="s1">הושלמה</label>
-          <input type="radio" name="status" id="s2" value="הושלמה חלקית"><label for="s2">חלקית</label>
-          <input type="radio" name="status" id="s3" value="לא הושלמה"><label for="s3">לא הושלמה</label>
-        </div>
-        <p class="err">יש לבחור סטטוס</p>
       </div>
     </fieldset>
 
@@ -318,31 +311,31 @@
 /* ---------- Settings you may want to change ---------- */
 const COMPANY = "שם החברה";      // shown at the top of the page and the PDF
 
-// Yes/no questions for each installation type. Every question gets כן / לא (required)
-// and an optional description. qty: true adds a required quantity when the answer is כן.
-// pdf: the label used in the PDF when the title has brackets (they come out flipped there).
-// csv: the column name in the office data file, when it should differ from the title, so the
-// same question gets one column for both installation types.
+// The questions after choosing התקנה or קריאת שירות; "בשתיהן" comes after either list.
+//   ask    the question on screen; {place} becomes בדירה / בווילה
+//   title  the name in the PDF and the column name in the office data file. A question with
+//          the same title in both lists shares one column. pdf: a PDF-only name for titles
+//          with brackets (they come out flipped in the PDF).
+//   text   a free-text answer instead of כן / לא. Every answer is required.
+//   qty    on כן, also ask for a quantity (required)
+//   desc   a description box: "optional" (always shown) or "onYes" (shown and required on כן)
+//   when   only ask when an earlier question in the same list has this answer
 const QUESTIONS = {
-  "וילה": [
-    { title: "התקנת סיב בווילה", csv: "סיב קיים", ask: "האם היה קיים סיב בווילה?" },
-    { title: "טיפול חשמלאי", ask: "האם בוצע טיפול חשמלאי?" },
-    { title: "קריאת שירות: החלפת סיב", ask: "האם בוצעה החלפה של סיב קיים?" },
-    { title: "קריאת שירות: תקלת תשתית", ask: "האם מדובר בתקלת תשתית?" },
-    { title: "הזזת שקע סיב למיקום אחר (בחיוב לקוח)", pdf: "הזזת שקע סיב, בחיוב לקוח", ask: "האם בוצעה הזזת שקע?" },
-    { title: "התקנת כבל רשת", ask: "האם הותקן כבל רשת?", qty: true },
-    { title: "התקנת מגדיל טווח", ask: "האם הותקן מגדיל טווח?", qty: true },
-    { title: "מכירת מגדיל טווח", ask: "האם נמכר מגדיל טווח במעמד ההתקנה?" },
+  "התקנה": [
+    { id: "fiber", title: "סיב קיים", ask: "האם היה קיים סיב {place}?" },
+    { id: "elec", title: "טיפול חשמלאי", ask: "האם בוצע טיפול חשמלאי?", desc: "onYes", when: { fiber: "לא" } },
+    { id: "lan", title: "התקנת כבל רשת", ask: "האם בוצעה התקנת כבל רשת?", qty: true, desc: "optional" },
+    { id: "ext", title: "התקנת מגדיל טווח", ask: "האם הותקן מגדיל טווח?", qty: true },
+    { id: "extSold", title: "מכירת מגדיל טווח", ask: "האם נמכרו מגדילי טווח במעמד ההתקנה?" },
   ],
-  "דירה": [
-    { title: "התקנת סיב בדירה", csv: "סיב קיים", ask: "האם היה קיים סיב בדירה?" },
-    { title: "טיפול חשמלאי", ask: "האם בוצע טיפול חשמלאי?" },
-    { title: "קריאת שירות: החלפת סיב", ask: "האם בוצעה החלפה של סיב קיים?" },
-    { title: "קריאת שירות: תקלת תשתית", ask: "האם מדובר בתקלת תשתית?" },
-    { title: "הזזת שקע סיב למיקום אחר (בחיוב לקוח)", pdf: "הזזת שקע סיב, בחיוב לקוח", ask: "האם בוצעה הזזת שקע?" },
-    { title: "התקנת כבל רשת", ask: "האם הותקן כבל רשת?", qty: true },
-    { title: "התקנת מגדיל טווח", ask: "האם הותקן מגדיל טווח?", qty: true },
-    { title: "מכירת מגדיל טווח", ask: "האם נמכר מגדיל טווח במעמד ההתקנה?" },
+  "קריאת שירות": [
+    { id: "done", title: "מה בוצע בקריאת השירות", ask: "מה בוצע בקריאת השירות?", text: true },
+    { id: "lan", title: "התקנת כבל רשת", ask: "האם הותקן כבל רשת?", qty: true },
+    { id: "ext", title: "התקנת מגדיל טווח", ask: "האם הותקן מגדיל טווח?", qty: true },
+    { id: "extSold", title: "מכירת מגדיל טווח", ask: "האם במעמד קריאת השירות נמכר מגדיל טווח?" },
+  ],
+  "בשתיהן": [
+    { id: "socket", title: "הזזת שקע סיב (בחיוב לקוח)", pdf: "הזזת שקע סיב, בחיוב לקוח", ask: "האם בוצעה הזזת שקע סיב למיקום אחר (בחיוב לקוח)?", desc: "onYes" },
   ],
 };
 
@@ -376,56 +369,87 @@ function currentType() {
   const r = $('input[name="type"]:checked');
   return r ? r.value : "";
 }
-function updateBranch() {
-  const t = currentType();
-  $$(".branch").forEach(b => b.classList.toggle("on", b.dataset.branch === t));
-  const offset = t ? 1 : 0;
-  $("#n4").textContent = 3 + offset;
+function currentJob() {
+  const r = $('input[name="job"]:checked');
+  return r ? r.value : "";
 }
-$$('input[name="type"]').forEach(r => r.addEventListener("change", updateBranch));
 
-let qn = 0;
-for (const [type, list] of Object.entries(QUESTIONS)) {
-  const box = $(`.branch[data-branch="${type}"] .qs`);
-  box.innerHTML = list.map(q => {
-    const id = q.id = "q" + (++qn);
-    return `<div class="q" data-q="${id}" data-label="${esc(q.pdf || q.title)}">
-      <p class="qt">${esc(q.title)}</p>
-      <div class="field" data-req data-radio="${id}">
-        <span class="lbl req">${esc(q.ask)}</span>
+// Each question gets a form id unique to its list (g0_fiber, g1_lan, ...).
+Object.values(QUESTIONS).forEach((list, gi) => {
+  list.forEach(q => { q.key = `g${gi}_${q.id}`; });
+  list.forEach(q => {
+    if (q.when) {
+      const [dep, is] = Object.entries(q.when)[0];
+      q.whenAttr = `${list.find(o => o.id === dep).key}=${is}`;
+    }
+  });
+});
+function questionHtml(q) {
+  const k = q.key;
+  const ask = esc(q.ask).replace("{place}", '<span class="place"></span>');
+  const when = q.whenAttr ? ` data-when="${q.whenAttr}" hidden` : "";
+  if (q.text) return `<div class="q" data-key="${k}"${when}>
+      <div class="field" data-req>
+        <label class="lbl req" for="${k}">${ask}</label>
+        <textarea id="${k}" rows="3"></textarea>
+        <p class="err">יש למלא את השדה</p>
+      </div>
+    </div>`;
+  return `<div class="q" data-key="${k}"${when}>
+      <div class="field" data-req data-radio="${k}">
+        <span class="lbl req">${ask}</span>
         <div class="chips">
-          <input type="radio" name="${id}" id="${id}y" value="כן"><label for="${id}y">כן</label>
-          <input type="radio" name="${id}" id="${id}n" value="לא"><label for="${id}n">לא</label>
+          <input type="radio" name="${k}" id="${k}y" value="כן"><label for="${k}y">כן</label>
+          <input type="radio" name="${k}" id="${k}n" value="לא"><label for="${k}n">לא</label>
         </div>
         <p class="err">יש לבחור כן או לא</p>
       </div>
-      ${q.qty ? `<div class="field" data-req hidden>
-        <label class="lbl req" for="${id}_qty">כמות</label>
-        <input type="number" id="${id}_qty" inputmode="numeric" min="1">
+      ${q.qty ? `<div class="field" data-req data-when="${k}=כן" hidden>
+        <label class="lbl req" for="${k}_qty">כמות</label>
+        <input type="number" id="${k}_qty" inputmode="numeric" min="1">
         <p class="err">יש לציין כמות</p>
       </div>` : ""}
-      <div class="field">
-        <textarea id="${id}_desc" rows="2" placeholder="תיאור (לא חובה)" aria-label="תיאור: ${esc(q.title)}"></textarea>
-      </div>
+      ${q.desc === "optional" ? `<div class="field">
+        <textarea id="${k}_desc" rows="2" placeholder="תיאור (לא חובה)" aria-label="תיאור"></textarea>
+      </div>` : ""}
+      ${q.desc === "onYes" ? `<div class="field" data-req data-when="${k}=כן" hidden>
+        <label class="lbl req" for="${k}_desc">תיאור</label>
+        <textarea id="${k}_desc" rows="2"></textarea>
+        <p class="err">יש לכתוב תיאור</p>
+      </div>` : ""}
     </div>`;
-  }).join("");
 }
-// The quantity box only shows (and only counts) when the answer is כן.
-function syncQty() {
-  $$(".q").forEach(q => {
-    const box = $(`#${q.dataset.q}_qty`)?.closest(".field");
-    if (box) box.hidden = ($(`input[name="${q.dataset.q}"]:checked`) || {}).value !== "כן";
+for (const [group, list] of Object.entries(QUESTIONS))
+  $(`.qs[data-group="${group}"]`).innerHTML = list.map(questionHtml).join("");
+
+// Anything with data-when="name=value" shows only while that answer is chosen, and
+// data-when="name" once anything is chosen. Hidden fields are skipped by the checks and
+// left out of the PDF and the data file.
+function syncVisibility() {
+  $$("[data-when]").forEach(el => {
+    const [name, want] = el.dataset.when.split("=");
+    const got = ($(`input[name="${name}"]:checked`) || {}).value;
+    el.hidden = want === undefined ? !got : got !== want;
   });
+  const t = currentType(), job = currentJob();
+  $$(".place").forEach(s => { s.textContent = t === "דירה" ? "בדירה" : t === "וילה" ? "בווילה" : "בנכס"; });
+  $("#jobTitle").textContent = job === "קריאת שירות" ? "פרטי קריאת השירות" : "פרטי ההתקנה";
+  $("#n4").textContent = job ? 4 : 3;
+  $$(".q.first").forEach(q => q.classList.remove("first"));
+  const firstQ = $$(".q").find(isShown);
+  if (firstQ) firstQ.classList.add("first");
 }
-form.addEventListener("change", syncQty);
+function isShown(el) { return !el.closest("[hidden]"); }
+form.addEventListener("change", syncVisibility);
+syncVisibility();
 
 /* ---------- Validation ---------- */
 function validate() {
   let first = null;
   $$("[data-req]").forEach(f => {
     let ok;
-    // hidden questions (other installation type, quantity after לא) don't count
-    if (f.closest(".branch:not(.on), [hidden]")) ok = true;
+    // hidden fields (the other job type, quantity after לא, ...) don't count
+    if (!isShown(f)) ok = true;
     else if (f.dataset.radio) ok = !!$(`input[name="${f.dataset.radio}"]:checked`);
     else ok = $("input,select,textarea", f).value.trim() !== "";
     f.classList.toggle("invalid", !ok);
@@ -470,31 +494,24 @@ function rows(pairs) {
   return "<table>" + filled.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("") + "</table>";
 }
 function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ""; }
-function branchPairs(t) {
-  const fs = $(`.branch[data-branch="${t}"]`);
-  if (!fs) return [];
-  const pairs = [];
-  const seen = new Set();
-  $$("[data-label]", fs).forEach(el => {
-    if (el.dataset.q) {
-      const id = el.dataset.q;
-      const ans = ($(`input[name="${id}"]:checked`) || {}).value || "";
-      const qty = ans === "כן" ? val(id + "_qty") : "";
-      const desc = val(id + "_desc");
-      pairs.push([el.dataset.label, [ans + (qty ? ", כמות: " + qty : ""), desc].filter(Boolean).join("\n")]);
-    } else if (el.type === "radio") {
-      if (seen.has(el.name)) return;
-      seen.add(el.name);
-      const c = $(`input[name="${el.name}"]:checked`, fs);
-      pairs.push([el.dataset.label, c ? c.value : ""]);
-    } else {
-      pairs.push([el.dataset.label, el.value.trim()]);
-    }
-  });
-  return pairs;
+// The questions of the chosen job (and the shared ones) that are on screen.
+function shownQuestions() {
+  return [...(QUESTIONS[currentJob()] || []), ...QUESTIONS["בשתיהן"]]
+    .filter(q => isShown($(`.q[data-key="${q.key}"]`)));
+}
+// What was answered: { ans, qty, desc }, each "" when not asked.
+function answerOf(q) {
+  if (q.text) return { ans: val(q.key), qty: "", desc: "" };
+  const ans = ($(`input[name="${q.key}"]:checked`) || {}).value || "";
+  const desc = $(`#${q.key}_desc`);
+  return {
+    ans,
+    qty: q.qty && ans === "כן" ? val(q.key + "_qty") : "",
+    desc: desc && isShown(desc) ? desc.value.trim() : "",
+  };
 }
 function buildDoc() {
-  const t = currentType();
+  const t = currentType(), job = currentJob();
   const parts = [];
   parts.push(`<div class="top">
       <div><div class="co">${esc(COMPANY)}</div><h1>דוח סיום התקנה</h1></div>
@@ -507,14 +524,18 @@ function buildDoc() {
     ["מספר לקוח", val("custNo")],
     ["עיר", val("city")],
     ["רחוב", val("street")],
-    ["סוג ההתקנה", t],
+    ["סוג הנכס", t],
+    ["קומה", t === "דירה" ? val("a_floor") : ""],
+    ["מספר דירה", t === "דירה" ? val("a_unit") : ""],
+    ["סוג העבודה", job],
   ])}</div>`);
-  const b = rows(branchPairs(t));
-  if (b) parts.push(`<div class="avoid"><h2>פרטי התקנה: ${esc(t)}</h2>${b}</div>`);
-  parts.push(`<div class="avoid"><h2>סיכום העבודה</h2>${rows([
-    ["הערות", val("notes")],
-    ["סטטוס העבודה", ($('input[name="status"]:checked') || {}).value || ""],
-  ])}</div>`);
+  const qs = rows(shownQuestions().map(q => {
+    const { ans, qty, desc } = answerOf(q);
+    return [q.pdf || q.title, [ans + (qty ? ", כמות: " + qty : ""), desc].filter(Boolean).join("\n")];
+  }));
+  if (qs) parts.push(`<div class="avoid"><h2>${esc($("#jobTitle").textContent)}</h2>${qs}</div>`);
+  const notes = rows([["הערות", val("notes")]]);
+  if (notes) parts.push(`<div class="avoid"><h2>סיכום העבודה</h2>${notes}</div>`);
   parts.push(`<div class="foot">הפרטים בדוח נאספו לצורך תיעוד ההתקנה ומתן שירות ללקוח. נוצר בתאריך ${esc($("#todayLbl").textContent)}.</div>`);
   const doc = document.createElement("div");
   doc.className = "doc";
@@ -559,8 +580,8 @@ async function makePdfBlob() {
 
 /* ---------- Data file (CSV) for the office ---------- */
 // A header row and one row for this report. Every report has the same columns (questions
-// are matched by column name across installation types), so the office can stack the
-// files into one Excel sheet. The leading BOM makes Excel read the Hebrew correctly.
+// are matched by title across התקנה and קריאת שירות), so the office can stack the files
+// into one Excel sheet. The leading BOM makes Excel read the Hebrew correctly.
 function buildCsv() {
   const t = currentType();
   const cols = [
@@ -571,24 +592,25 @@ function buildCsv() {
     ["מספר לקוח", val("custNo")],
     ["עיר", val("city")],
     ["רחוב", val("street")],
-    ["סוג ההתקנה", t],
+    ["סוג הנכס", t],
     ["קומה", t === "דירה" ? val("a_floor") : ""],
     ["מספר דירה", t === "דירה" ? val("a_unit") : ""],
+    ["סוג העבודה", currentJob()],
   ];
-  const colName = q => q.csv || q.pdf || q.title;
-  const all = new Map(); // column name -> has a quantity
+  const all = new Map(); // title -> does any question with it have a quantity / description
   for (const list of Object.values(QUESTIONS))
-    for (const q of list) all.set(colName(q), all.get(colName(q)) || !!q.qty);
-  const mine = new Map((QUESTIONS[t] || []).map(q => [colName(q), q.id]));
-  for (const [name, qty] of all) {
-    const id = mine.get(name);
-    const ans = id ? ($(`input[name="${id}"]:checked`) || {}).value || "" : "";
-    cols.push([name, ans]);
-    if (qty) cols.push([name + " - כמות", ans === "כן" ? val(id + "_qty") : ""]);
-    cols.push([name + " - תיאור", id ? val(id + "_desc") : ""]);
+    for (const q of list) {
+      const c = all.get(q.title) || { qty: false, desc: false };
+      all.set(q.title, { qty: c.qty || !!q.qty, desc: c.desc || !!q.desc });
+    }
+  const mine = new Map(shownQuestions().map(q => [q.title, answerOf(q)]));
+  for (const [title, has] of all) {
+    const a = mine.get(title) || { ans: "", qty: "", desc: "" };
+    cols.push([title, a.ans]);
+    if (has.qty) cols.push([title + " - כמות", a.qty]);
+    if (has.desc) cols.push([title + " - תיאור", a.desc]);
   }
   cols.push(["הערות", val("notes")]);
-  cols.push(["סטטוס העבודה", ($('input[name="status"]:checked') || {}).value || ""]);
   // Quote every cell; a leading ' stops Excel from treating text like "=..." as a formula.
   const cell = v => {
     let x = String(v);
@@ -687,7 +709,7 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") dlg.classLis
 $("#clearYes").addEventListener("click", () => {
   form.reset();
   $$(".invalid").forEach(f => f.classList.remove("invalid"));
-  newReportNo(); updateBranch(); syncQty(); hideNotice();
+  newReportNo(); syncVisibility(); hideNotice();
   dlg.classList.remove("on");
   window.scrollTo({ top: 0, behavior: "smooth" });
 });
