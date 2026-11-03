@@ -8,51 +8,45 @@
 <style>
   body{font:17px/1.5 system-ui,sans-serif;margin:0;padding:16px;background:#EDEDED;color:#1A1A1A}
   h1{font-size:22px;margin:0 0 12px}
-  table{width:100%;border-collapse:collapse;background:#fff;border-radius:10px;overflow:hidden}
-  td{padding:9px 10px;border-bottom:1px solid #D4D4D4}
-  td.r{font-weight:700;text-align:center;width:70px}
-  .ok{color:#1b7a2e}.no{color:#B3261E}
+  ol{padding-inline-start:22px}
   button{display:block;width:100%;font:inherit;font-weight:700;min-height:54px;margin:10px 0;border-radius:10px;border:0;background:#D61B5C;color:#fff}
-  #ua,#log{font-size:13px;direction:ltr;text-align:left;word-break:break-all;background:#fff;padding:10px;border-radius:10px}
+  #log{font-size:15px;background:#fff;padding:10px;border-radius:10px;white-space:pre-line}
 </style>
 </head>
 <body>
-<h1>בדיקת שיתוף קבצים</h1>
-<p>צלמו מסך של כל הדף ושלחו. הדף לא שולח שום מידע לשום מקום.</p>
-<table id="t"></table>
-<button id="b1">ניסיון שיתוף: CSV לבד</button>
-<button id="b2">ניסיון שיתוף: PDF + CSV</button>
-<div id="log">-</div>
-<p>הדפדפן:</p>
-<div id="ua"></div>
+<h1>בדיקת שיתוף לוואטסאפ</h1>
+<ol>
+  <li>לוחצים על כפתור 1.</li>
+  <li>בוואטסאפ בוחרים את הצ'אט עם עצמכם (או איש קשר שלכם) ושולחים.</li>
+  <li>חוזרים לדף הזה וממשיכים לכפתור הבא, עד 5.</li>
+  <li>בסוף מצלמים את הצ'אט בוואטסאפ ואת הדף הזה, ושולחים את שתי התמונות.</li>
+</ol>
+<button data-n="1">1. PDF לבד</button>
+<button data-n="2">2. CSV לבד</button>
+<button data-n="3">3. PDF + CSV</button>
+<button data-n="4">4. PDF + CSV + טקסט</button>
+<button data-n="5">5. CSV לבד + טקסט</button>
+<div id="log">תוצאות:</div>
 <script>
-const pdfBytes = "%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF";
-const csvBytes = "﻿\"a\",\"b\"\r\n\"1\",\"2\"\r\n";
-const pdf = new File([pdfBytes], "בדיקה.pdf", { type: "application/pdf" });
-const csv = new File([csvBytes], "בדיקה.csv", { type: "text/csv" });
-const cases = [
-  ["PDF", [pdf]],
-  ["CSV (text/csv)", [csv]],
-  ["CSV שם באנגלית", [new File([csvBytes], "test.csv", { type: "text/csv" })]],
-  ["CSV (comma-separated-values)", [new File([csvBytes], "בדיקה.csv", { type: "text/comma-separated-values" })]],
-  ["TXT", [new File([csvBytes], "בדיקה.txt", { type: "text/plain" })]],
-  ["PDF + CSV", [pdf, csv]],
-  ["PDF + PDF", [pdf, new File([pdfBytes], "בדיקה2.pdf", { type: "application/pdf" })]],
-];
-const t = document.getElementById("t");
-for (const [name, files] of cases) {
-  let r;
-  try { r = navigator.canShare ? (navigator.canShare({ files }) ? "כן" : "לא") : "אין"; } catch (e) { r = "שגיאה"; }
-  t.insertAdjacentHTML("beforeend", `<tr><td>${name}</td><td class="r ${r === "כן" ? "ok" : "no"}">${r}</td></tr>`);
-}
-document.getElementById("ua").textContent = navigator.userAgent;
+const pdfB64 = "JVBERi0xLjQKMSAwIG9iago8PC9UeXBlL0NhdGFsb2cvUGFnZXMgMiAwIFI+PgplbmRvYmoKMiAwIG9iago8PC9UeXBlL1BhZ2VzL0tpZHNbMyAwIFJdL0NvdW50IDE+PgplbmRvYmoKMyAwIG9iago8PC9UeXBlL1BhZ2UvUGFyZW50IDIgMCBSL01lZGlhQm94WzAgMCAzMDAgMTUwXS9Db250ZW50cyA0IDAgUi9SZXNvdXJjZXM8PC9Gb250PDwvRjEgNSAwIFI+Pj4+Pj4KZW5kb2JqCjQgMCBvYmoKPDwvTGVuZ3RoIDQ0Pj5zdHJlYW0KQlQgL0YxIDI0IFRmIDQwIDcwIFRkIChTaGFyZSB0ZXN0IFBERikgVGogRVQKZW5kc3RyZWFtCmVuZG9iago1IDAgb2JqCjw8L1R5cGUvRm9udC9TdWJ0eXBlL1R5cGUxL0Jhc2VGb250L0hlbHZldGljYT4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1NCAwMDAwMCBuIAowMDAwMDAwMTA1IDAwMDAwIG4gCjAwMDAwMDAyMTcgMDAwMDAgbiAKMDAwMDAwMDMwOCAwMDAwMCBuIAp0cmFpbGVyPDwvU2l6ZSA2L1Jvb3QgMSAwIFI+PgpzdGFydHhyZWYKMzcxCiUlRU9GCg==";
+const pdfBytes = Uint8Array.from(atob(pdfB64), c => c.charCodeAt(0));
+const csvBytes = "﻿\"שם\",\"כמות\"\r\n\"בדיקה\",\"1\"\r\n";
+const pdf = n => new File([pdfBytes], `בדיקה-${n}.pdf`, { type: "application/pdf" });
+const csv = n => new File([csvBytes], `בדיקה-${n}.csv`, { type: "text/csv" });
+const text = "בדיקת שיתוף";
+const tests = {
+  1: () => ({ files: [pdf(1)] }),
+  2: () => ({ files: [csv(2)] }),
+  3: () => ({ files: [pdf(3), csv(3)] }),
+  4: () => ({ files: [pdf(4), csv(4)], text }),
+  5: () => ({ files: [csv(5)], text }),
+};
 const log = document.getElementById("log");
-async function tryShare(label, files) {
-  try { await navigator.share({ files }); log.textContent = label + ": OK"; }
-  catch (e) { log.textContent = label + ": " + (e && e.name) + " - " + (e && e.message); }
-}
-document.getElementById("b1").onclick = () => tryShare("CSV", [csv]);
-document.getElementById("b2").onclick = () => tryShare("PDF+CSV", [pdf, csv]);
+document.querySelectorAll("button").forEach(b => b.onclick = async () => {
+  const n = b.dataset.n;
+  try { await navigator.share(tests[n]()); log.textContent += `\n${n}: נמסר לשיתוף`; }
+  catch (e) { log.textContent += `\n${n}: ${e && e.name}`; }
+});
 </script>
 </body>
 </html>
