@@ -21,7 +21,6 @@
   <li>חוזרים לדף הזה וממשיכים לכפתור הבא, עד 5.</li>
   <li>בסוף מצלמים את הצ'אט בוואטסאפ ואת הדף הזה, ושולחים את שתי התמונות.</li>
 </ol>
-<button data-n="6" style="background:#1A1A1A">6. הדרך החדשה: PDF + CSV</button>
 <button data-n="1">1. PDF לבד</button>
 <button data-n="2">2. CSV לבד</button>
 <button data-n="3">3. PDF + CSV</button>
@@ -41,8 +40,6 @@ const tests = {
   3: () => ({ files: [pdf(3), csv(3)] }),
   4: () => ({ files: [pdf(4), csv(4)], text }),
   5: () => ({ files: [csv(5)], text }),
-  // the CSV keeps its .csv name but is labelled like the PDF, so WhatsApp takes it as a document
-  6: () => ({ files: [pdf(6), new File([csvBytes], "בדיקה-6.csv", { type: "application/pdf" })] }),
 };
 const log = document.getElementById("log");
 document.querySelectorAll("button").forEach(b => b.onclick = async () => {
