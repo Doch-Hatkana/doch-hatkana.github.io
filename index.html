@@ -144,7 +144,6 @@
   .notice ol{margin:6px 0 0;padding-inline-start:22px}
   .notice.bad{border-color:var(--error)}
   .notice .actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
-  .notice .actions.stack .btn{flex:1 1 100%}
 
   /* Dialog for clearing */
   .dlg{position:fixed;inset:0;background:rgba(26,26,26,.5);display:none;align-items:center;justify-content:center;z-index:10;padding:16px}
@@ -694,10 +693,7 @@ const sendSteps = `<ol>
   <li>בוחרים את הקבצים מתיקיית ההורדות ושולחים.</li>
 </ol>`;
 
-let shareFiles = [], csvShare = [];
-// WhatsApp on Android sends a PDF or a CSV, but refuses the two shared together ("can't send
-// an empty message"), so on Android each file gets its own share.
-const SHARE_SEPARATELY = /Android/i.test(navigator.userAgent);
+let shareFiles = [];
 // The files the phone lets us share: both, the PDF alone (some phones refuse the CSV), or none.
 function shareable(files) {
   if (!navigator.canShare) return [];
@@ -708,9 +704,9 @@ function shareable(files) {
 }
 // Returns "shared", "closed" (user dismissed the sheet), "blocked" (the phone refused
 // because too long passed since the tap) or "failed".
-async function shareFile(files = shareFiles) {
+async function shareFile() {
   try {
-    await navigator.share({ files, title: files[0].name });
+    await navigator.share({ files: shareFiles, title: shareFiles[0].name });
     return "shared";
   } catch (e) {
     if (e && e.name === "AbortError") return "closed";
@@ -722,16 +718,8 @@ async function shareAgain() {
   const r = await shareFile();
   if (r === "blocked" || r === "failed") {
     // only the PDF was downloaded so far; save the CSV too so it can be sent by hand
-    [...shareFiles.slice(1), ...csvShare].forEach(f => directDownload(f, f.name));
+    shareFiles.slice(1).forEach(f => directDownload(f, f.name));
     showNotice("bad", "השיתוף לא נפתח", `<p>אפשר לשלוח את הקבצים שהורדו בדרך הרגילה:</p>${sendSteps}`);
-  }
-}
-async function shareCsv() {
-  const r = await shareFile(csvShare);
-  if (r === "shared") $("#csvBtn").textContent = "קובץ הנתונים נשלח ✓ (לשלוח שוב)";
-  if (r === "blocked" || r === "failed") {
-    csvShare.forEach(f => directDownload(f, f.name));
-    showNotice("bad", "השיתוף לא נפתח", `<p>קובץ הנתונים (CSV) נשמר בהורדות. אפשר לצרף אותו לקבוצה בדרך הרגילה:</p>${sendSteps}`);
   }
 }
 
@@ -744,31 +732,14 @@ $("#pdfBtn").addEventListener("click", async () => {
     const base = fileName();
     const pdf = new File([await makePdfBlob()], base + ".pdf", { type: "application/pdf" });
     const csv = new File([buildCsv()], base + ".csv", { type: "text/csv" });
-    const both = shareable([pdf, csv]);
-    const separate = SHARE_SEPARATELY && both.length === 2; // PDF now, the CSV from a second button
-    shareFiles = separate ? [pdf] : both;
-    csvShare = separate ? [csv] : [];
+    shareFiles = shareable([pdf, csv]);
     // Phones only open the share sheet shortly after a tap, so it goes before the downloads.
     // If the phone refuses, the notice below offers it again with one more tap.
     const result = shareFiles.length ? await shareFile() : "";
-    // Keep a copy on the device: always the PDF, and the CSV when it can't be shared.
-    const csvSaved = separate ? result === "failed" : !shareFiles.includes(csv) || result === "failed";
+    // Keep a copy on the device: always the PDF, and the CSV when it wasn't handed to the share sheet.
+    const csvSaved = !shareFiles.includes(csv) || result === "failed";
     directDownload(pdf, pdf.name);
     if (csvSaved) directDownload(csv, csv.name);
-    if (separate && result !== "failed") {
-      const sent = result === "shared";
-      showNotice("ok", sent ? "ה-PDF נשלח, עכשיו קובץ הנתונים" : "הקבצים מוכנים",
-        `<p>קובץ ה-PDF נשמר בהורדות של המכשיר.</p>` +
-        `<p>${sent ? "שולחים לאותה קבוצה גם את קובץ הנתונים:" : "שולחים לקבוצה את שני הקבצים, אחד אחרי השני:"}</p>` +
-        `<div class="actions stack">` +
-        (sent ? "" : `<button type="button" class="btn primary" id="shareBtn">1. שליחת ה-PDF</button>`) +
-        `<button type="button" class="btn primary" id="csvBtn">${sent ? "" : "2. "}שליחת קובץ הנתונים (CSV)</button>` +
-        (sent ? `<button type="button" class="btn secondary" id="shareBtn">שליחת ה-PDF שוב</button>` : "") +
-        `</div>`);
-      $("#shareBtn").addEventListener("click", shareAgain);
-      $("#csvBtn").addEventListener("click", shareCsv);
-      return;
-    }
     showNotice("ok", "הקבצים מוכנים",
       `<p>${csvSaved ? "קובץ ה-PDF וקובץ הנתונים (CSV) נשמרו" : "קובץ ה-PDF נשמר"} בהורדות של המכשיר.</p>` +
       (shareFiles.length === 1 ? "<p>הטלפון הזה לא מאפשר לשתף את קובץ הנתונים (CSV), אז צריך לצרף אותו לקבוצה ידנית מההורדות.</p>" : "") +
