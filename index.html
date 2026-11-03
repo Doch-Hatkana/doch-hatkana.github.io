@@ -142,6 +142,7 @@
   .notice h2{font-size:18px;margin:0 0 6px}
   .notice p{margin:0 0 6px}
   .notice ol{margin:6px 0 0;padding-inline-start:22px}
+  .notice ol + p{margin-top:10px}
   .notice.bad{border-color:var(--error)}
   .notice .actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
 
@@ -693,6 +694,21 @@ const sendSteps = `<ol>
   <li>בוחרים את הקבצים מתיקיית ההורדות ושולחים.</li>
 </ol>`;
 
+// WhatsApp takes a CSV handed over by the share sheet only on iPhone: on Android it refuses
+// it ("can't send an empty message") and on a computer it arrives but won't open. Elsewhere
+// only the PDF is shared, and the CSV is downloaded to be attached from inside WhatsApp.
+const SHARE_CSV = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+const ON_PHONE = /Android|Mobi/i.test(navigator.userAgent);
+const csvSteps = ON_PHONE
+  ? `<ol>
+      <li>בקבוצה בוואטסאפ לוחצים על סמל הצירוף (📎) ובוחרים <b>מסמך</b>.</li>
+      <li>בוחרים את הקובץ עם אותו שם כמו ה-PDF והסיומת <b>csv</b> (אם הוא לא ברשימה, הוא בתיקיית <b>הורדות</b>) ושולחים.</li>
+    </ol>`
+  : `<ol>
+      <li>בוואטסאפ במחשב, בקבוצה, לוחצים על סמל הצירוף (📎 או +) ובוחרים <b>מסמך</b>.</li>
+      <li>בתיקיית <b>הורדות</b> בוחרים את הקובץ עם אותו שם כמו ה-PDF והסיומת <b>csv</b> ושולחים.</li>
+    </ol>`;
+
 let shareFiles = [];
 // The files the phone lets us share: both, the PDF alone (some phones refuse the CSV), or none.
 function shareable(files) {
@@ -732,7 +748,7 @@ $("#pdfBtn").addEventListener("click", async () => {
     const base = fileName();
     const pdf = new File([await makePdfBlob()], base + ".pdf", { type: "application/pdf" });
     const csv = new File([buildCsv()], base + ".csv", { type: "text/csv" });
-    shareFiles = shareable([pdf, csv]);
+    shareFiles = shareable(SHARE_CSV ? [pdf, csv] : [pdf]);
     // Phones only open the share sheet shortly after a tap, so it goes before the downloads.
     // If the phone refuses, the notice below offers it again with one more tap.
     const result = shareFiles.length ? await shareFile() : "";
@@ -740,12 +756,18 @@ $("#pdfBtn").addEventListener("click", async () => {
     const csvSaved = !shareFiles.includes(csv) || result === "failed";
     directDownload(pdf, pdf.name);
     if (csvSaved) directDownload(csv, csv.name);
-    showNotice("ok", "הקבצים מוכנים",
-      `<p>${csvSaved ? "קובץ ה-PDF וקובץ הנתונים (CSV) נשמרו" : "קובץ ה-PDF נשמר"} בהורדות של המכשיר.</p>` +
-      (shareFiles.length === 1 ? "<p>הטלפון הזה לא מאפשר לשתף את קובץ הנתונים (CSV), אז צריך לצרף אותו לקבוצה ידנית מההורדות.</p>" : "") +
-      (shareFiles.length && result !== "failed"
-        ? `<p>${result === "shared" ? "לא נשלח? אפשר לפתוח שוב את השיתוף." : "שליחה ישירה לקבוצה:"}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שליחה בוואטסאפ</button></div>`
-        : `<p>שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`));
+    const saved = `<p>${csvSaved ? "קובץ ה-PDF וקובץ הנתונים (CSV) נשמרו" : "קובץ ה-PDF נשמר"} בהורדות של המכשיר.</p>`;
+    const shareBtn = (label, kind) => `<div class="actions"><button type="button" class="btn ${kind}" id="shareBtn">${label}</button></div>`;
+    if (!shareFiles.length || result === "failed")
+      showNotice("ok", "הקבצים מוכנים", `${saved}<p>שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`);
+    else if (shareFiles.length === 1) // the PDF went to the share sheet; the CSV is attached from WhatsApp
+      showNotice("ok", result === "shared" ? "ה-PDF נשלח. עכשיו קובץ הנתונים" : "הקבצים מוכנים", saved +
+        (result === "shared" ? "" : `<p>שליחת ה-PDF לקבוצה:</p>${shareBtn("שליחת ה-PDF בוואטסאפ", "primary")}`) +
+        `<p><b>${result === "shared" ? "עכשיו" : "אחר כך"} מצרפים לאותה קבוצה את קובץ הנתונים (CSV):</b></p>${csvSteps}` +
+        (result === "shared" ? `<p>ה-PDF לא נשלח?</p>${shareBtn("שליחת ה-PDF שוב", "secondary")}` : ""));
+    else
+      showNotice("ok", "הקבצים מוכנים", saved +
+        `<p>${result === "shared" ? "לא נשלח? אפשר לפתוח שוב את השיתוף." : "שליחה ישירה לקבוצה:"}</p>${shareBtn("שליחה בוואטסאפ", "primary")}`);
     const sb = $("#shareBtn");
     if (sb) sb.addEventListener("click", shareAgain);
   } catch (e) {
