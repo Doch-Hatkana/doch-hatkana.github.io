@@ -97,6 +97,7 @@
   }
   .chips input:checked + label{background:var(--ink);border-color:var(--ink);color:#fff}
   .chips.single label{flex:0 1 calc(50% - 4px)} /* a lone כן keeps the size of a כן / לא pair */
+  .chips.list label{flex:1 1 100%;justify-content:flex-start;text-align:start;white-space:normal;padding:11px 14px}
   .chips input:focus-visible + label{outline:3px solid var(--accent);outline-offset:2px}
 
   /* The installation type picker is the loud element */
@@ -272,7 +273,6 @@
       <legend><span class="n">3</span><span id="jobTitle"></span></legend>
       <div class="qs" data-group="התקנה" data-when="job=התקנה" hidden></div>
       <div class="qs" data-group="קריאת שירות" data-when="job=קריאת שירות" hidden></div>
-      <div class="qs" data-group="בשתיהן"></div>
     </fieldset>
 
     <fieldset>
@@ -312,12 +312,14 @@
 /* ---------- Settings you may want to change ---------- */
 const COMPANY = "שם החברה";      // shown at the top of the page and the PDF
 
-// The questions after choosing התקנה or קריאת שירות; "בשתיהן" comes after either list.
+// The questions after choosing התקנה or קריאת שירות.
 //   ask    the question on screen; {place} becomes בדירה / בווילה
 //   title  the name in the PDF and the column name in the office data file. A question with
 //          the same title in both lists shares one column. pdf: a PDF-only name for titles
 //          with brackets (they come out flipped in the PDF).
-//   text   a free-text answer instead of כן / לא. Every answer is required, except:
+//   text   a free-text answer instead of כן / לא
+//   choice pick one of these instead of כן / לא; picking "אחר" asks for the details (required)
+//   Every answer is required, except:
 //   yesOnly  just a כן button that can be left unmarked (then it's left out of the PDF)
 //   qty    on כן, also ask for a quantity (required)
 //   desc   a description box: "optional" (always shown) or "onYes" (shown and required on כן)
@@ -329,15 +331,28 @@ const QUESTIONS = {
     { id: "lan", title: "התקנת כבל רשת", ask: "האם בוצעה התקנת כבל רשת?", qty: true, desc: "optional" },
     { id: "ext", title: "התקנת מגדיל טווח", ask: "האם הותקן מגדיל טווח?", qty: true },
     { id: "extSold", title: "מכירת מגדיל טווח", ask: "האם נמכרו מגדילי טווח במעמד ההתקנה?" },
+    { id: "socket", title: "הזזת שקע סיב (בחיוב לקוח)", pdf: "הזזת שקע סיב, בחיוב לקוח", ask: "האם בוצעה הזזת שקע סיב למיקום אחר (בחיוב לקוח)?", desc: "onYes" },
   ],
   "קריאת שירות": [
-    { id: "done", title: "מה בוצע בקריאת השירות", ask: "מה בוצע בקריאת השירות?", text: true },
+    { id: "fault", title: "סוג התקלה", ask: "אנא סמן את סוג התקלה שבוצעה בפועל", choice: [
+      "החלפת נתב תקול",
+      "החלפת מגדיל טווח תקול",
+      "החלפת מגשר",
+      "ריתוך מחדש בשקע",
+      "ריתוך מחדש בתיבה",
+      "נמצא מנותק בתיבה",
+      "איקטוב מחדש לנתב",
+      "אין עוצמות - נפתחה תקלת רשת",
+      "אין פורט פנוי",
+      "לא נמצאה תקלה לקוח גולש",
+      "תקלת IBC/רימון",
+      "החלפת סיב",
+      "אחר",
+    ] },
     { id: "lan", title: "התקנת כבל רשת", ask: "האם הותקן כבל רשת?", qty: true, yesOnly: true },
     { id: "ext", title: "התקנת מגדיל טווח", ask: "האם הותקן מגדיל טווח?", qty: true, yesOnly: true },
     { id: "extSold", title: "מכירת מגדיל טווח", ask: "האם במעמד קריאת השירות נמכר מגדיל טווח?", yesOnly: true },
-  ],
-  "בשתיהן": [
-    { id: "socket", title: "הזזת שקע סיב (בחיוב לקוח)", pdf: "הזזת שקע סיב, בחיוב לקוח", ask: "האם בוצעה הזזת שקע סיב למיקום אחר (בחיוב לקוח)?", desc: "onYes" },
+    { id: "socket", title: "הזזת שקע סיב (בחיוב לקוח)", pdf: "הזזת שקע סיב, בחיוב לקוח", ask: "האם בוצעה הזזת שקע סיב למיקום אחר (בחיוב לקוח)?", desc: "onYes", yesOnly: true },
   ],
 };
 
@@ -395,6 +410,20 @@ function questionHtml(q) {
         <label class="lbl req" for="${k}">${ask}</label>
         <textarea id="${k}" rows="3"></textarea>
         <p class="err">יש למלא את השדה</p>
+      </div>
+    </div>`;
+  if (q.choice) return `<div class="q" data-key="${k}"${when}>
+      <div class="field" data-req data-radio="${k}">
+        <span class="lbl req">${ask}</span>
+        <div class="chips list" role="radiogroup" aria-label="${esc(q.title)}">
+          ${q.choice.map((c, i) => `<input type="radio" name="${k}" id="${k}_${i}" value="${esc(c)}"><label for="${k}_${i}">${esc(c)}</label>`).join("")}
+        </div>
+        <p class="err">יש לבחור אחת מהאפשרויות</p>
+      </div>
+      <div class="field" data-req data-when="${k}=אחר" hidden>
+        <label class="lbl req" for="${k}_other">פירוט</label>
+        <textarea id="${k}_other" rows="2"></textarea>
+        <p class="err">יש לפרט מה בוצע</p>
       </div>
     </div>`;
   // yesOnly: a single כן toggle (a checkbox, so a second tap unmarks it), not required
@@ -505,15 +534,15 @@ function rows(pairs) {
   return "<table>" + filled.map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${esc(v)}</td></tr>`).join("") + "</table>";
 }
 function val(id) { const el = document.getElementById(id); return el ? el.value.trim() : ""; }
-// The questions of the chosen job (and the shared ones) that are on screen.
+// The questions of the chosen job that are on screen.
 function shownQuestions() {
-  return [...(QUESTIONS[currentJob()] || []), ...QUESTIONS["בשתיהן"]]
-    .filter(q => isShown($(`.q[data-key="${q.key}"]`)));
+  return (QUESTIONS[currentJob()] || []).filter(q => isShown($(`.q[data-key="${q.key}"]`)));
 }
 // What was answered: { ans, qty, desc }, each "" when not asked.
 function answerOf(q) {
   if (q.text) return { ans: val(q.key), qty: "", desc: "" };
   const ans = ($(`input[name="${q.key}"]:checked`) || {}).value || "";
+  if (q.choice) return { ans: ans === "אחר" ? "אחר: " + val(q.key + "_other") : ans, qty: "", desc: "" };
   const desc = $(`#${q.key}_desc`);
   return {
     ans,
