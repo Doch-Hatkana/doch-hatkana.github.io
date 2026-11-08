@@ -582,9 +582,14 @@ function buildDoc() {
   doc.innerHTML = parts.join("");
   return doc;
 }
+// e.g. משה-כהן_נשלח-08.11.2026_וילה_קריאת-שירות_בוצע-07.11.2026
+//   installer, the date the report is sent, property type, job type, the date the work was done
 function fileName() {
-  const c = val("customer").replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, "-") || "לקוח";
-  return `דוח-התקנה-${c}-${reportNo}`;
+  const part = s => s.replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "-");
+  const d = new Date();
+  const sent = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+  const done = fmtDate(val("date")).replace(/\//g, ".");
+  return [part(val("installer")), "נשלח-" + sent, currentType(), part(currentJob()), "בוצע-" + done].join("_");
 }
 // Keep each .avoid block whole on one page by pushing it to the next page when it would be
 // cut. html2pdf can do this itself, but it measures against the screen, and on a phone (with
@@ -636,47 +641,51 @@ async function makePdfBlob() {
   }
 }
 
-/* ---------- Data file (CSV) for the office ---------- */
+/* ---------- Data file (CSV) for the office: TURNED OFF ---------- */
+// Only the PDF is sent for now. The CSV code is kept here, commented out, for later.
+// To turn it back on: remove the "// " at the start of the lines below, and of the lines
+// marked "CSV" in the "הורדה ושיתוף" button code further down.
+//
 // A header row and one row for this report. Every report has the same columns (questions
 // are matched by title across התקנה and קריאת שירות), so the office can stack the files
 // into one Excel sheet. The leading BOM makes Excel read the Hebrew correctly.
-function buildCsv() {
-  const t = currentType();
-  const cols = [
-    ["מספר דוח", reportNo],
-    ["תאריך ההתקנה", fmtDate(val("date"))],
-    ["שם המתקין", val("installer")],
-    ["שם הלקוח", val("customer")],
-    ["מספר לקוח", val("custNo")],
-    ["עיר", val("city")],
-    ["רחוב", val("street")],
-    ["סוג הנכס", t],
-    ["קומה", t === "דירה" ? val("a_floor") : ""],
-    ["מספר דירה", t === "דירה" ? val("a_unit") : ""],
-    ["סוג העבודה", currentJob()],
-  ];
-  const all = new Map(); // title -> does any question with it have a quantity / description
-  for (const list of Object.values(QUESTIONS))
-    for (const q of list) {
-      const c = all.get(q.title) || { qty: false, desc: false };
-      all.set(q.title, { qty: c.qty || !!q.qty, desc: c.desc || !!q.desc });
-    }
-  const mine = new Map(shownQuestions().map(q => [q.title, answerOf(q)]));
-  for (const [title, has] of all) {
-    const a = mine.get(title) || { ans: "", qty: "", desc: "" };
-    cols.push([title, a.ans]);
-    if (has.qty) cols.push([title + " - כמות", a.qty]);
-    if (has.desc) cols.push([title + " - תיאור", a.desc]);
-  }
-  cols.push(["הערות", val("notes")]);
-  // Quote every cell; a leading ' stops Excel from treating text like "=..." as a formula.
-  const cell = v => {
-    let x = String(v);
-    if (/^[=+@\t\r]|^-(?!\d)/.test(x)) x = "'" + x;
-    return '"' + x.replace(/"/g, '""') + '"';
-  };
-  return "\uFEFF" + [cols.map(c => cell(c[0])), cols.map(c => cell(c[1]))].map(r => r.join(",")).join("\r\n") + "\r\n";
-}
+// function buildCsv() {
+//   const t = currentType();
+//   const cols = [
+//     ["מספר דוח", reportNo],
+//     ["תאריך ההתקנה", fmtDate(val("date"))],
+//     ["שם המתקין", val("installer")],
+//     ["שם הלקוח", val("customer")],
+//     ["מספר לקוח", val("custNo")],
+//     ["עיר", val("city")],
+//     ["רחוב", val("street")],
+//     ["סוג הנכס", t],
+//     ["קומה", t === "דירה" ? val("a_floor") : ""],
+//     ["מספר דירה", t === "דירה" ? val("a_unit") : ""],
+//     ["סוג העבודה", currentJob()],
+//   ];
+//   const all = new Map(); // title -> does any question with it have a quantity / description
+//   for (const list of Object.values(QUESTIONS))
+//     for (const q of list) {
+//       const c = all.get(q.title) || { qty: false, desc: false };
+//       all.set(q.title, { qty: c.qty || !!q.qty, desc: c.desc || !!q.desc });
+//     }
+//   const mine = new Map(shownQuestions().map(q => [q.title, answerOf(q)]));
+//   for (const [title, has] of all) {
+//     const a = mine.get(title) || { ans: "", qty: "", desc: "" };
+//     cols.push([title, a.ans]);
+//     if (has.qty) cols.push([title + " - כמות", a.qty]);
+//     if (has.desc) cols.push([title + " - תיאור", a.desc]);
+//   }
+//   cols.push(["הערות", val("notes")]);
+//   // Quote every cell; a leading ' stops Excel from treating text like "=..." as a formula.
+//   const cell = v => {
+//     let x = String(v);
+//     if (/^[=+@\t\r]|^-(?!\d)/.test(x)) x = "'" + x;
+//     return '"' + x.replace(/"/g, '""') + '"';
+//   };
+//   return "\uFEFF" + [cols.map(c => cell(c[0])), cols.map(c => cell(c[1]))].map(r => r.join(",")).join("\r\n") + "\r\n";
+// }
 
 /* ---------- Deliver the files ---------- */
 function directDownload(blob, name) {
@@ -690,7 +699,7 @@ function directDownload(blob, name) {
 const sendSteps = `<ol>
   <li>פותחים את וואטסאפ ונכנסים לקבוצה.</li>
   <li>לוחצים על סמל הצירוף (📎) ובוחרים <b>מסמך</b>.</li>
-  <li>בוחרים את הקבצים מתיקיית ההורדות ושולחים.</li>
+  <li>בוחרים את קובץ ה-PDF מתיקיית ההורדות ושולחים.</li>
 </ol>`;
 
 let shareFiles = [];
@@ -719,7 +728,7 @@ async function shareAgain() {
   if (r === "blocked" || r === "failed") {
     // only the PDF was downloaded so far; save the CSV too so it can be sent by hand
     shareFiles.slice(1).forEach(f => directDownload(f, f.name));
-    showNotice("bad", "השיתוף לא נפתח", `<p>אפשר לשלוח את הקבצים שהורדו בדרך הרגילה:</p>${sendSteps}`);
+    showNotice("bad", "השיתוף לא נפתח", `<p>אפשר לשלוח את הקובץ שהורד בדרך הרגילה:</p>${sendSteps}`);
   }
 }
 
@@ -727,29 +736,32 @@ $("#pdfBtn").addEventListener("click", async () => {
   hideNotice();
   if (!validate()) return;
   const btn = $("#pdfBtn");
-  btn.disabled = true; btn.textContent = "מכין את הקבצים…";
+  btn.disabled = true; btn.textContent = "מכין את הקובץ…";
   try {
     const base = fileName();
     const pdf = new File([await makePdfBlob()], base + ".pdf", { type: "application/pdf" });
-    const csv = new File([buildCsv()], base + ".csv", { type: "text/csv" });
-    shareFiles = shareable([pdf, csv]);
+    // CSV: const csv = new File([buildCsv()], base + ".csv", { type: "text/csv" });
+    // CSV: shareFiles = shareable([pdf, csv]);
+    shareFiles = shareable([pdf]); // CSV: remove this line when turning the CSV back on
     // Phones only open the share sheet shortly after a tap, so it goes before the downloads.
     // If the phone refuses, the notice below offers it again with one more tap.
     const result = shareFiles.length ? await shareFile() : "";
-    // Keep a copy on the device: always the PDF, and the CSV when it wasn't handed to the share sheet.
-    const csvSaved = !shareFiles.includes(csv) || result === "failed";
+    // Keep a copy of the PDF on the device.
+    // CSV: const csvSaved = !shareFiles.includes(csv) || result === "failed";
     directDownload(pdf, pdf.name);
-    if (csvSaved) directDownload(csv, csv.name);
-    showNotice("ok", "הקבצים מוכנים",
-      `<p>${csvSaved ? "קובץ ה-PDF וקובץ הנתונים (CSV) נשמרו" : "קובץ ה-PDF נשמר"} בהורדות של המכשיר.</p>` +
-      (shareFiles.length === 1 ? "<p>הטלפון הזה לא מאפשר לשתף את קובץ הנתונים (CSV), אז צריך לצרף אותו לקבוצה ידנית מההורדות.</p>" : "") +
+    // CSV: if (csvSaved) directDownload(csv, csv.name);
+    showNotice("ok", "הקובץ מוכן",
+      `<p>קובץ ה-PDF נשמר בהורדות של המכשיר.</p>` +
+      // CSV: put back in place of the line above:
+      // CSV: `<p>${csvSaved ? "קובץ ה-PDF וקובץ הנתונים (CSV) נשמרו" : "קובץ ה-PDF נשמר"} בהורדות של המכשיר.</p>` +
+      // CSV: (shareFiles.length === 1 ? "<p>הטלפון הזה לא מאפשר לשתף את קובץ הנתונים (CSV), אז צריך לצרף אותו לקבוצה ידנית מההורדות.</p>" : "") +
       (shareFiles.length && result !== "failed"
         ? `<p>${result === "shared" ? "לא נשלח? אפשר לפתוח שוב את השיתוף." : "שליחה ישירה לקבוצה:"}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שליחה בוואטסאפ</button></div>`
         : `<p>שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`));
     const sb = $("#shareBtn");
     if (sb) sb.addEventListener("click", shareAgain);
   } catch (e) {
-    showNotice("bad", "לא הצלחנו ליצור את הקבצים",
+    showNotice("bad", "לא הצלחנו ליצור את הקובץ",
       e && e.message === "lib"
         ? "<p>רכיב יצירת ה-PDF לא נטען. בדקו את החיבור לאינטרנט ורעננו את הדף. הנתונים שמילאתם יימחקו ברענון.</p>"
         : "<p>נסו שוב. אם זה חוזר, רעננו את הדף ומלאו מחדש.</p>");
