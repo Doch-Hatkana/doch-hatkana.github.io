@@ -716,8 +716,9 @@ function shareable(files) {
 // because too long passed since the tap) or "failed".
 async function shareFile() {
   try {
-    // No title: WhatsApp on Android puts it in the caption next to the file.
-    await navigator.share({ files: shareFiles });
+    // Keep the title: without it, sharing to WhatsApp on Android stopped working (versions
+    // 15 to 18). WhatsApp on Android shows it as the caption next to the file.
+    await navigator.share({ files: shareFiles, title: shareFiles[0].name });
     return "shared";
   } catch (e) {
     if (e && e.name === "AbortError") return "closed";
