@@ -740,8 +740,8 @@ function legacyCopy(text) {
 }
 function messageHtml(copied) {
   return `<p>${copied
-      ? "ההודעה לקבוצה הועתקה. בוואטסאפ, לפני השליחה: לחיצה ארוכה על שורת הכיתוב ליד הקובץ, ואז <b>הדבק</b>."
-      : "ההודעה לקבוצה (להעתיק ולהדביק בשורת הכיתוב ליד הקובץ):"}</p>` +
+      ? "ההודעה לקבוצה אמורה להופיע ליד הקובץ בוואטסאפ. אם היא חסרה, היא כבר הועתקה: לחיצה ארוכה על שורת הכיתוב ליד הקובץ, ואז <b>הדבק</b>."
+      : "ההודעה לקבוצה. אם היא לא מופיעה ליד הקובץ בוואטסאפ, מעתיקים ומדביקים אותה בשורת הכיתוב:"}</p>` +
     `<pre class="msg">${esc(message)}</pre>` +
     `<div class="actions"><button type="button" class="btn secondary" id="copyBtn">העתקת ההודעה</button></div>`;
 }
@@ -767,9 +767,12 @@ function shareable(files) {
 // because too long passed since the tap) or "failed".
 async function shareFile() {
   try {
-    // No title: WhatsApp on Android puts it in the caption, and the caption is for the
-    // ready message (buildMessage) that the installer pastes.
-    await navigator.share({ files: shareFiles });
+    // The ready message (buildMessage) goes in as text, so WhatsApp shows it as the PDF's
+    // caption. No title: WhatsApp on Android puts that in the caption too.
+    // The message is also copied, in case a phone leaves it out.
+    const data = { files: shareFiles };
+    if (message) data.text = message;
+    await navigator.share(data);
     return "shared";
   } catch (e) {
     if (e && e.name === "AbortError") return "closed";
@@ -798,7 +801,7 @@ $("#pdfBtn").addEventListener("click", async () => {
   try {
     const copied = await copying;
     $("#busyHint").textContent = copied
-      ? "ההודעה לקבוצה הועתקה. בוואטסאפ, לפני השליחה: לחיצה ארוכה על שורת הכיתוב ליד הקובץ, ואז \"הדבק\"."
+      ? "בוואטסאפ ההודעה תופיע ליד הקובץ. אם היא חסרה: לחיצה ארוכה על שורת הכיתוב, ואז \"הדבק\"."
       : "";
     const base = fileName();
     const pdf = new File([await makePdfBlob()], base + ".pdf", { type: "application/pdf" });
