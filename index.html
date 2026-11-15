@@ -767,7 +767,9 @@ function shareable(files) {
 // because too long passed since the tap) or "failed".
 async function shareFile() {
   try {
-    await navigator.share({ files: shareFiles, title: shareFiles[0].name });
+    // No title: WhatsApp on Android puts it in the caption, and the caption is for the
+    // ready message (buildMessage) that the installer pastes.
+    await navigator.share({ files: shareFiles });
     return "shared";
   } catch (e) {
     if (e && e.name === "AbortError") return "closed";
