@@ -153,13 +153,8 @@
   .dlg .actions{display:flex;gap:10px;margin-top:16px}
   .dlg .actions .btn{flex:1}
 
-  .busy{position:fixed;inset:0;z-index:20;background:var(--ground);display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:16px;font-weight:700;font-size:20px}
+  .busy{position:fixed;inset:0;z-index:20;background:var(--ground);display:none;align-items:center;justify-content:center;font-weight:700;font-size:20px}
   .busy.on{display:flex}
-  .busy p{margin:0 0 10px;max-width:420px}
-  .busy #busyHint{font-weight:400;font-size:17px}
-
-  /* The ready WhatsApp message, shown in the notice */
-  .msg{white-space:pre-wrap;font:inherit;background:var(--ground);border-radius:8px;padding:10px 12px;margin:6px 0 0}
 
   /* PDF render target (A4 @ 96dpi = 794px wide) — kept off-screen */
   #pdfStage{position:fixed;top:0;left:-10000px;width:794px;pointer-events:none}
@@ -311,7 +306,7 @@
 </div>
 
 <div id="pdfStage" aria-hidden="true"></div>
-<div class="busy" id="busy" role="status"><p>מכין את קובץ ה-PDF…</p><p id="busyHint"></p></div>
+<div class="busy" id="busy" role="status"><p>מכין את קובץ ה-PDF…</p></div>
 
 <script>
 /* ---------- Settings you may want to change ---------- */
@@ -360,16 +355,6 @@ const QUESTIONS = {
     { id: "socket", title: "הזזת שקע סיב (בחיוב לקוח)", pdf: "הזזת שקע סיב, בחיוב לקוח", ask: "האם בוצעה הזזת שקע סיב למיקום אחר (בחיוב לקוח)?", desc: "onYes", yesOnly: true },
   ],
 };
-
-// The ready message for the WhatsApp group. It is copied when "הורדה ושיתוף" is tapped,
-// and the installer pastes it as the caption of the PDF. One line per item.
-function buildMessage() {
-  return [
-    "שם המתקין: " + val("installer"),
-    "שם הלקוח: " + val("customer"),
-    "מספר לקוח: " + val("custNo"),
-  ].join("\n");
-}
 
 /* ---------- Basics ---------- */
 const $ = (s, r = document) => r.querySelector(s);
@@ -597,14 +582,15 @@ function buildDoc() {
   doc.innerHTML = parts.join("");
   return doc;
 }
-// e.g. משה-כהן_נשלח-08.11.2026_וילה_קריאת-שירות_בוצע-07.11.2026
-//   installer, the date the report is sent, property type, job type, the date the work was done
+// e.g. משה כהן - 12345 - נשלח 08.11.2026 - וילה - קריאת שירות - בוצע 07.11.2026
+//   installer, customer number, the date the report is sent, property type, job type,
+//   the date the work was done
 function fileName() {
-  const part = s => s.replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "-");
+  const part = s => s.replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, " ").trim();
   const d = new Date();
   const sent = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
   const done = fmtDate(val("date")).replace(/\//g, ".");
-  return [part(val("installer")), "נשלח-" + sent, currentType(), part(currentJob()), "בוצע-" + done].join("_");
+  return [part(val("installer")), part(val("custNo")), "נשלח " + sent, currentType(), currentJob(), "בוצע " + done].join(" - ");
 }
 // Keep each .avoid block whole on one page by pushing it to the next page when it would be
 // cut. html2pdf can do this itself, but it measures against the screen, and on a phone (with
@@ -714,61 +700,8 @@ function directDownload(blob, name) {
 const sendSteps = `<ol>
   <li>פותחים את וואטסאפ ונכנסים לקבוצה.</li>
   <li>לוחצים על סמל הצירוף (📎) ובוחרים <b>מסמך</b>.</li>
-  <li>בוחרים את קובץ ה-PDF מתיקיית ההורדות.</li>
-  <li>לוחצים לחיצה ארוכה על שורת הכיתוב, בוחרים <b>הדבק</b> ושולחים.</li>
+  <li>בוחרים את קובץ ה-PDF מתיקיית ההורדות ושולחים.</li>
 </ol>`;
-
-// Copy the ready message. Phones allow this only right after a tap, so it's called first
-// thing in the button code. Resolves to true when it worked.
-let message = "";
-function copyText(text) {
-  if (navigator.clipboard && window.isSecureContext)
-    return navigator.clipboard.writeText(text).then(() => true, () => legacyCopy(text));
-  return Promise.resolve(legacyCopy(text));
-}
-// For older phones, and for the site opened without https (testing over Wi-Fi with Live Server).
-function legacyCopy(text) {
-  const ta = document.createElement("textarea");
-  ta.value = text; ta.readOnly = true;
-  ta.style.cssText = "position:fixed;top:0;left:-10000px;opacity:0";
-  document.body.append(ta);
-  ta.select(); ta.setSelectionRange(0, text.length);
-  let ok = false;
-  try { ok = document.execCommand("copy"); } catch (_) {}
-  ta.remove();
-  return ok;
-}
-// WhatsApp on Android refuses a PDF and a text shared together, so there the PDF is shared
-// alone and the message gets its own button. iPhones take both together.
-const IS_ANDROID = /Android/i.test(navigator.userAgent);
-const MSG_APART = IS_ANDROID && !!navigator.share;
-function messageHtml(copied) {
-  const intro = MSG_APART
-    ? "<b>עכשיו שולחים את ההודעה:</b> לוחצים על הכפתור ובוחרים את אותה קבוצה."
-    : copied
-      ? "ההודעה לקבוצה אמורה להופיע ליד הקובץ בוואטסאפ. אם היא חסרה, היא כבר הועתקה: לחיצה ארוכה על שורת הכיתוב ליד הקובץ, ואז <b>הדבק</b>."
-      : "ההודעה לקבוצה. אם היא לא מופיעה ליד הקובץ בוואטסאפ, מעתיקים ומדביקים אותה בשורת הכיתוב:";
-  return `<p>${intro}</p><pre class="msg">${esc(message)}</pre><div class="actions">` +
-    (MSG_APART ? `<button type="button" class="btn primary" id="msgBtn">שליחת ההודעה לקבוצה</button>` : "") +
-    `<button type="button" class="btn secondary" id="copyBtn">העתקת ההודעה</button></div>`;
-}
-function wireMessageButtons() {
-  const cb = $("#copyBtn");
-  if (cb) cb.addEventListener("click", async () => {
-    const ok = await copyText(message);
-    cb.textContent = ok ? "ההודעה הועתקה ✓" : "לא הועתק: סמנו את ההודעה והעתיקו";
-  });
-  const mb = $("#msgBtn");
-  if (mb) mb.addEventListener("click", async () => {
-    try {
-      await navigator.share({ text: message });
-    } catch (e) {
-      if (e && e.name === "AbortError") return; // closed the share sheet
-      const ok = await copyText(message);
-      mb.textContent = ok ? "לא נפתח. ההודעה הועתקה: הדביקו אותה בקבוצה" : "לא נפתח. העתיקו את ההודעה והדביקו בקבוצה";
-    }
-  });
-}
 
 let shareFiles = [];
 // The files the phone lets us share: both, the PDF alone (some phones refuse the CSV), or none.
@@ -783,12 +716,8 @@ function shareable(files) {
 // because too long passed since the tap) or "failed".
 async function shareFile() {
   try {
-    // On iPhone the ready message (buildMessage) goes in as text, so WhatsApp shows it as the
-    // PDF's caption. On Android it's sent with its own button (MSG_APART).
-    // No title: WhatsApp on Android puts it in the caption.
-    const data = { files: shareFiles };
-    if (message && !MSG_APART) data.text = message;
-    await navigator.share(data);
+    // No title: WhatsApp on Android puts it in the caption next to the file.
+    await navigator.share({ files: shareFiles });
     return "shared";
   } catch (e) {
     if (e && e.name === "AbortError") return "closed";
@@ -801,26 +730,16 @@ async function shareAgain() {
   if (r === "blocked" || r === "failed") {
     // only the PDF was downloaded so far; save the CSV too so it can be sent by hand
     shareFiles.slice(1).forEach(f => directDownload(f, f.name));
-    showNotice("bad", "השיתוף לא נפתח", `<p>אפשר לשלוח את הקובץ שהורד בדרך הרגילה:</p>${sendSteps}` + messageHtml(false));
-    wireMessageButtons();
+    showNotice("bad", "השיתוף לא נפתח", `<p>אפשר לשלוח את הקובץ שהורד בדרך הרגילה:</p>${sendSteps}`);
   }
 }
 
 $("#pdfBtn").addEventListener("click", async () => {
   hideNotice();
   if (!validate()) return;
-  // Copy the message now, while the tap still counts.
-  message = buildMessage();
-  const copying = copyText(message);
   const btn = $("#pdfBtn");
   btn.disabled = true; btn.textContent = "מכין את הקובץ…";
   try {
-    const copied = await copying;
-    $("#busyHint").textContent = MSG_APART
-      ? "קודם שולחים את ה-PDF לקבוצה. אחר כך יופיע כפתור לשליחת ההודעה."
-      : copied
-        ? "בוואטסאפ ההודעה תופיע ליד הקובץ. אם היא חסרה: לחיצה ארוכה על שורת הכיתוב, ואז \"הדבק\"."
-        : "";
     const base = fileName();
     const pdf = new File([await makePdfBlob()], base + ".pdf", { type: "application/pdf" });
     // CSV: const csv = new File([buildCsv()], base + ".csv", { type: "text/csv" });
@@ -839,12 +758,10 @@ $("#pdfBtn").addEventListener("click", async () => {
       // CSV: `<p>${csvSaved ? "קובץ ה-PDF וקובץ הנתונים (CSV) נשמרו" : "קובץ ה-PDF נשמר"} בהורדות של המכשיר.</p>` +
       // CSV: (shareFiles.length === 1 ? "<p>הטלפון הזה לא מאפשר לשתף את קובץ הנתונים (CSV), אז צריך לצרף אותו לקבוצה ידנית מההורדות.</p>" : "") +
       (shareFiles.length && result !== "failed"
-        ? `<p>${result === "shared" ? "לא נשלח? אפשר לפתוח שוב את השיתוף." : "שליחה ישירה לקבוצה:"}</p><div class="actions"><button type="button" class="btn ${MSG_APART ? "secondary" : "primary"}" id="shareBtn">שליחת ה-PDF בוואטסאפ</button></div>`
-        : `<p>שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`) +
-      messageHtml(copied));
+        ? `<p>${result === "shared" ? "לא נשלח? אפשר לפתוח שוב את השיתוף." : "שליחה ישירה לקבוצה:"}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שליחה בוואטסאפ</button></div>`
+        : `<p>שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`));
     const sb = $("#shareBtn");
     if (sb) sb.addEventListener("click", shareAgain);
-    wireMessageButtons();
   } catch (e) {
     showNotice("bad", "לא הצלחנו ליצור את הקובץ",
       e && e.message === "lib"
