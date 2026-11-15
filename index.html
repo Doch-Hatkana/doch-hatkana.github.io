@@ -738,19 +738,35 @@ function legacyCopy(text) {
   ta.remove();
   return ok;
 }
+// WhatsApp on Android refuses a PDF and a text shared together, so there the PDF is shared
+// alone and the message gets its own button. iPhones take both together.
+const IS_ANDROID = /Android/i.test(navigator.userAgent);
+const MSG_APART = IS_ANDROID && !!navigator.share;
 function messageHtml(copied) {
-  return `<p>${copied
+  const intro = MSG_APART
+    ? "<b>עכשיו שולחים את ההודעה:</b> לוחצים על הכפתור ובוחרים את אותה קבוצה."
+    : copied
       ? "ההודעה לקבוצה אמורה להופיע ליד הקובץ בוואטסאפ. אם היא חסרה, היא כבר הועתקה: לחיצה ארוכה על שורת הכיתוב ליד הקובץ, ואז <b>הדבק</b>."
-      : "ההודעה לקבוצה. אם היא לא מופיעה ליד הקובץ בוואטסאפ, מעתיקים ומדביקים אותה בשורת הכיתוב:"}</p>` +
-    `<pre class="msg">${esc(message)}</pre>` +
-    `<div class="actions"><button type="button" class="btn secondary" id="copyBtn">העתקת ההודעה</button></div>`;
+      : "ההודעה לקבוצה. אם היא לא מופיעה ליד הקובץ בוואטסאפ, מעתיקים ומדביקים אותה בשורת הכיתוב:";
+  return `<p>${intro}</p><pre class="msg">${esc(message)}</pre><div class="actions">` +
+    (MSG_APART ? `<button type="button" class="btn primary" id="msgBtn">שליחת ההודעה לקבוצה</button>` : "") +
+    `<button type="button" class="btn secondary" id="copyBtn">העתקת ההודעה</button></div>`;
 }
-function wireCopyBtn() {
+function wireMessageButtons() {
   const cb = $("#copyBtn");
-  if (!cb) return;
-  cb.addEventListener("click", async () => {
+  if (cb) cb.addEventListener("click", async () => {
     const ok = await copyText(message);
     cb.textContent = ok ? "ההודעה הועתקה ✓" : "לא הועתק: סמנו את ההודעה והעתיקו";
+  });
+  const mb = $("#msgBtn");
+  if (mb) mb.addEventListener("click", async () => {
+    try {
+      await navigator.share({ text: message });
+    } catch (e) {
+      if (e && e.name === "AbortError") return; // closed the share sheet
+      const ok = await copyText(message);
+      mb.textContent = ok ? "לא נפתח. ההודעה הועתקה: הדביקו אותה בקבוצה" : "לא נפתח. העתיקו את ההודעה והדביקו בקבוצה";
+    }
   });
 }
 
@@ -767,11 +783,11 @@ function shareable(files) {
 // because too long passed since the tap) or "failed".
 async function shareFile() {
   try {
-    // The ready message (buildMessage) goes in as text, so WhatsApp shows it as the PDF's
-    // caption. No title: WhatsApp on Android puts that in the caption too.
-    // The message is also copied, in case a phone leaves it out.
+    // On iPhone the ready message (buildMessage) goes in as text, so WhatsApp shows it as the
+    // PDF's caption. On Android it's sent with its own button (MSG_APART).
+    // No title: WhatsApp on Android puts it in the caption.
     const data = { files: shareFiles };
-    if (message) data.text = message;
+    if (message && !MSG_APART) data.text = message;
     await navigator.share(data);
     return "shared";
   } catch (e) {
@@ -786,7 +802,7 @@ async function shareAgain() {
     // only the PDF was downloaded so far; save the CSV too so it can be sent by hand
     shareFiles.slice(1).forEach(f => directDownload(f, f.name));
     showNotice("bad", "השיתוף לא נפתח", `<p>אפשר לשלוח את הקובץ שהורד בדרך הרגילה:</p>${sendSteps}` + messageHtml(false));
-    wireCopyBtn();
+    wireMessageButtons();
   }
 }
 
@@ -800,9 +816,11 @@ $("#pdfBtn").addEventListener("click", async () => {
   btn.disabled = true; btn.textContent = "מכין את הקובץ…";
   try {
     const copied = await copying;
-    $("#busyHint").textContent = copied
-      ? "בוואטסאפ ההודעה תופיע ליד הקובץ. אם היא חסרה: לחיצה ארוכה על שורת הכיתוב, ואז \"הדבק\"."
-      : "";
+    $("#busyHint").textContent = MSG_APART
+      ? "קודם שולחים את ה-PDF לקבוצה. אחר כך יופיע כפתור לשליחת ההודעה."
+      : copied
+        ? "בוואטסאפ ההודעה תופיע ליד הקובץ. אם היא חסרה: לחיצה ארוכה על שורת הכיתוב, ואז \"הדבק\"."
+        : "";
     const base = fileName();
     const pdf = new File([await makePdfBlob()], base + ".pdf", { type: "application/pdf" });
     // CSV: const csv = new File([buildCsv()], base + ".csv", { type: "text/csv" });
@@ -821,12 +839,12 @@ $("#pdfBtn").addEventListener("click", async () => {
       // CSV: `<p>${csvSaved ? "קובץ ה-PDF וקובץ הנתונים (CSV) נשמרו" : "קובץ ה-PDF נשמר"} בהורדות של המכשיר.</p>` +
       // CSV: (shareFiles.length === 1 ? "<p>הטלפון הזה לא מאפשר לשתף את קובץ הנתונים (CSV), אז צריך לצרף אותו לקבוצה ידנית מההורדות.</p>" : "") +
       (shareFiles.length && result !== "failed"
-        ? `<p>${result === "shared" ? "לא נשלח? אפשר לפתוח שוב את השיתוף." : "שליחה ישירה לקבוצה:"}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שליחה בוואטסאפ</button></div>`
+        ? `<p>${result === "shared" ? "לא נשלח? אפשר לפתוח שוב את השיתוף." : "שליחה ישירה לקבוצה:"}</p><div class="actions"><button type="button" class="btn ${MSG_APART ? "secondary" : "primary"}" id="shareBtn">שליחת ה-PDF בוואטסאפ</button></div>`
         : `<p>שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`) +
       messageHtml(copied));
     const sb = $("#shareBtn");
     if (sb) sb.addEventListener("click", shareAgain);
-    wireCopyBtn();
+    wireMessageButtons();
   } catch (e) {
     showNotice("bad", "לא הצלחנו ליצור את הקובץ",
       e && e.message === "lib"
