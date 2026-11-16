@@ -317,6 +317,17 @@
   </div>
 </div>
 
+<div class="dlg" id="browserDlg" role="alertdialog" aria-modal="true" aria-labelledby="browserTitle">
+  <div class="box">
+    <h2 id="browserTitle">הדפדפן הזה לא מתאים לטופס</h2>
+    <p style="margin:0" id="browserText"></p>
+    <div class="actions" style="flex-direction:column">
+      <a class="btn primary" id="chromeBtn" hidden style="display:flex;align-items:center;justify-content:center;text-decoration:none">פתיחה ב-Chrome</a>
+      <button type="button" class="btn secondary" id="copyLinkBtn">העתקת הקישור</button>
+    </div>
+  </div>
+</div>
+
 <div id="pdfStage" aria-hidden="true"></div>
 <div class="busy" id="busy" role="status"><p>מכין את קובץ ה-PDF…</p></div>
 
@@ -762,7 +773,7 @@ function techInfo() {
   ].join(" | "))}</p>`;
 }
 function offerShare(text) {
-  showNotice("ok", "הדוח מוכן", `<p>${text}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שיתוף</button></div>` + techInfo());
+  showNotice("ok", "הדוח מוכן", `<p>${text}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שיתוף</button></div>`);
   $("#shareBtn").addEventListener("click", openShare);
 }
 // Two steps on purpose: "סיימתי" makes the PDF, then the "שיתוף" button in the "הדוח מוכן"
@@ -806,6 +817,37 @@ $("#pdfBtn").addEventListener("click", async () => {
     btn.disabled = false; btn.textContent = "סיימתי";
   }
 });
+
+/* ---------- Phones whose browser can't share files ---------- */
+// A site can't force which browser opens it. So on a phone browser that can't share a PDF
+// (an in-app browser, for one) the form is blocked up front, before the installer fills in a
+// whole report, with a button that asks Android to open the page in Chrome.
+(function () {
+  const ua = navigator.userAgent;
+  const android = /Android/i.test(ua);
+  const ios = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  if (!android && !ios) return; // on a computer the PDF is downloaded when sharing isn't possible
+  let ok = false;
+  try {
+    ok = !!(navigator.share && navigator.canShare &&
+      navigator.canShare({ files: [new File(["x"], "x.pdf", { type: "application/pdf" })] }));
+  } catch (_) {}
+  if (ok) return;
+  $("#browserText").textContent = android
+    ? "מהדפדפן הזה אי אפשר לשלוח את הדוח לוואטסאפ. צריך לפתוח את הטופס ב-Chrome."
+    : "מהדפדפן הזה אי אפשר לשלוח את הדוח לוואטסאפ. צריך לפתוח את הטופס ב-Safari: מעתיקים את הקישור ומדביקים אותו ב-Safari.";
+  if (android) {
+    const chrome = $("#chromeBtn");
+    chrome.href = `intent://${location.host}${location.pathname}${location.search}#Intent;scheme=https;package=com.android.chrome;end`;
+    chrome.hidden = false;
+  }
+  $("#copyLinkBtn").addEventListener("click", async e => {
+    let done = false;
+    try { await navigator.clipboard.writeText(location.href); done = true; } catch (_) {}
+    e.target.textContent = done ? "הקישור הועתק ✓" : location.href;
+  });
+  $("#browserDlg").classList.add("on");
+})();
 
 /* ---------- Clear form ---------- */
 const dlg = $("#clearDlg");
