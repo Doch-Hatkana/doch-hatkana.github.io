@@ -582,15 +582,17 @@ function buildDoc() {
   doc.innerHTML = parts.join("");
   return doc;
 }
-// e.g. משה כהן - 12345 - נשלח 08.11.2026 - וילה - קריאת שירות - בוצע 07.11.2026
+// e.g. משה-כהן_12345_נשלח-08.11.2026_וילה_קריאת-שירות_בוצע-07.11.2026
 //   installer, customer number, the date the report is sent, property type, job type,
 //   the date the work was done
+// No spaces: with spaces in the name (versions 18 and 19) sharing to WhatsApp on Android
+// stopped working, and it worked with this underscore format before (up to version 14).
 function fileName() {
-  const part = s => s.replace(/[\\/:*?"<>|]+/g, "").replace(/\s+/g, " ").trim();
+  const part = s => s.replace(/[\\/:*?"<>|]+/g, "").trim().replace(/\s+/g, "-");
   const d = new Date();
   const sent = `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
   const done = fmtDate(val("date")).replace(/\//g, ".");
-  return [part(val("installer")), part(val("custNo")), "נשלח " + sent, currentType(), currentJob(), "בוצע " + done].join(" - ");
+  return [part(val("installer")), part(val("custNo")), "נשלח-" + sent, currentType(), part(currentJob()), "בוצע-" + done].join("_");
 }
 // Keep each .avoid block whole on one page by pushing it to the next page when it would be
 // cut. html2pdf can do this itself, but it measures against the screen, and on a phone (with
