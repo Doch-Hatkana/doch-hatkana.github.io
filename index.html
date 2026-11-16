@@ -290,7 +290,7 @@
 <div class="bar">
   <div class="wrap">
     <button type="button" class="btn secondary" id="clearBtn">ניקוי</button>
-    <button type="button" class="btn primary" id="pdfBtn">הורדה ושיתוף</button>
+    <button type="button" class="btn primary" id="pdfBtn">שיתוף</button>
   </div>
 </div>
 
@@ -301,6 +301,17 @@
     <div class="actions">
       <button type="button" class="btn secondary" id="clearNo">ביטול</button>
       <button type="button" class="btn primary" id="clearYes">ניקוי הטופס</button>
+    </div>
+  </div>
+</div>
+
+<div class="dlg" id="readyDlg" role="dialog" aria-modal="true" aria-labelledby="readyTitle">
+  <div class="box">
+    <h2 id="readyTitle">הדוח מוכן</h2>
+    <p style="margin:0">לוחצים כדי לפתוח את חלון השיתוף ולבחור את וואטסאפ.</p>
+    <div class="actions">
+      <button type="button" class="btn secondary" id="readyNo">ביטול</button>
+      <button type="button" class="btn primary" id="readyYes">פתיחת השיתוף</button>
     </div>
   </div>
 </div>
@@ -647,7 +658,7 @@ async function makePdfBlob() {
 /* ---------- Data file (CSV) for the office: TURNED OFF ---------- */
 // Only the PDF is sent for now. The CSV code is kept here, commented out, for later.
 // To turn it back on: remove the "// " at the start of the lines below, and of the lines
-// marked "CSV" in the "הורדה ושיתוף" button code further down.
+// marked "CSV" in the "שיתוף" button code further down.
 //
 // A header row and one row for this report. Every report has the same columns (questions
 // are matched by title across התקנה and קריאת שירות), so the office can stack the files
@@ -728,14 +739,30 @@ async function shareFile() {
     return "failed";
   }
 }
-async function shareAgain() {
-  const r = await shareFile();
-  if (r === "blocked" || r === "failed") {
-    // only the PDF was downloaded so far; save the CSV too so it can be sent by hand
-    shareFiles.slice(1).forEach(f => directDownload(f, f.name));
-    showNotice("bad", "השיתוף לא נפתח", `<p>אפשר לשלוח את הקובץ שהורד בדרך הרגילה:</p>${sendSteps}`);
-  }
+// The file is shared, not downloaded. It's saved to the device only when sharing can't work.
+const readyDlg = $("#readyDlg");
+function saveInstead(title, kind = "bad") {
+  shareFiles.forEach(f => directDownload(f, f.name));
+  showNotice(kind, title, `<p>קובץ ה-PDF נשמר בהורדות של המכשיר. שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`);
 }
+function offerShare(text) {
+  showNotice("ok", "הדוח מוכן", `<p>${text}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">פתיחת השיתוף</button></div>`);
+  $("#shareBtn").addEventListener("click", () => openShare(false));
+}
+// Phones open the share sheet only within a few seconds of a tap, and making the PDF can
+// take longer than that. When the phone says no, the "הדוח מוכן" window asks for one more
+// tap, which opens the sheet right away.
+async function openShare(firstTry) {
+  const r = await shareFile();
+  if (r === "blocked" && firstTry) { readyDlg.classList.add("on"); $("#readyYes").focus(); return; }
+  if (r === "blocked" || r === "failed") return saveInstead("השיתוף לא נפתח");
+  offerShare(r === "shared" ? "לא נשלח? אפשר לפתוח שוב את השיתוף." : "השיתוף נסגר בלי שליחה. אפשר לפתוח אותו שוב:");
+}
+$("#readyYes").addEventListener("click", () => { readyDlg.classList.remove("on"); openShare(false); });
+$("#readyNo").addEventListener("click", () => {
+  readyDlg.classList.remove("on");
+  offerShare("אפשר לפתוח את השיתוף כשמוכנים:");
+});
 
 $("#pdfBtn").addEventListener("click", async () => {
   hideNotice();
@@ -748,30 +775,24 @@ $("#pdfBtn").addEventListener("click", async () => {
     // CSV: const csv = new File([buildCsv()], base + ".csv", { type: "text/csv" });
     // CSV: shareFiles = shareable([pdf, csv]);
     shareFiles = shareable([pdf]); // CSV: remove this line when turning the CSV back on
-    // Phones only open the share sheet shortly after a tap, so it goes before the downloads.
-    // If the phone refuses, the notice below offers it again with one more tap.
-    const result = shareFiles.length ? await shareFile() : "";
-    // Keep a copy of the PDF on the device.
-    // CSV: const csvSaved = !shareFiles.includes(csv) || result === "failed";
-    directDownload(pdf, pdf.name);
-    // CSV: if (csvSaved) directDownload(csv, csv.name);
-    showNotice("ok", "הקובץ מוכן",
-      `<p>קובץ ה-PDF נשמר בהורדות של המכשיר.</p>` +
-      // CSV: put back in place of the line above:
-      // CSV: `<p>${csvSaved ? "קובץ ה-PDF וקובץ הנתונים (CSV) נשמרו" : "קובץ ה-PDF נשמר"} בהורדות של המכשיר.</p>` +
-      // CSV: (shareFiles.length === 1 ? "<p>הטלפון הזה לא מאפשר לשתף את קובץ הנתונים (CSV), אז צריך לצרף אותו לקבוצה ידנית מההורדות.</p>" : "") +
-      (shareFiles.length && result !== "failed"
-        ? `<p>${result === "shared" ? "לא נשלח? אפשר לפתוח שוב את השיתוף." : "שליחה ישירה לקבוצה:"}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שליחה בוואטסאפ</button></div>`
-        : `<p>שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`));
-    const sb = $("#shareBtn");
-    if (sb) sb.addEventListener("click", shareAgain);
+    // CSV: a CSV the phone refuses to share also needs saving: if (!shareFiles.includes(csv)) directDownload(csv, csv.name);
+    if (!shareFiles.length) { // this browser can't share files at all
+      shareFiles = [pdf];
+      return saveInstead("הקובץ מוכן", "ok");
+    }
+    // The tap has already expired (a slow phone): skip straight to the "הדוח מוכן" window.
+    if (navigator.userActivation && !navigator.userActivation.isActive) {
+      readyDlg.classList.add("on"); $("#readyYes").focus();
+      return;
+    }
+    await openShare(true);
   } catch (e) {
     showNotice("bad", "לא הצלחנו ליצור את הקובץ",
       e && e.message === "lib"
         ? "<p>רכיב יצירת ה-PDF לא נטען. בדקו את החיבור לאינטרנט ורעננו את הדף. הנתונים שמילאתם יימחקו ברענון.</p>"
         : "<p>נסו שוב. אם זה חוזר, רעננו את הדף ומלאו מחדש.</p>");
   } finally {
-    btn.disabled = false; btn.textContent = "הורדה ושיתוף";
+    btn.disabled = false; btn.textContent = "שיתוף";
   }
 });
 
