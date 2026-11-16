@@ -143,6 +143,7 @@
   .notice p{margin:0 0 6px}
   .notice ol{margin:6px 0 0;padding-inline-start:22px}
   .notice.bad{border-color:var(--error)}
+  .notice .tech{font-size:12px;color:var(--steel);margin-top:10px;text-align:left;word-break:break-word}
   .notice .actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
 
   /* Dialog for clearing */
@@ -727,13 +728,16 @@ function shareable(files) {
 }
 // Returns "shared", "closed" (user dismissed the sheet), "blocked" (the phone refused
 // because too long passed since the tap) or "failed".
+let shareError = ""; // the phone's reason when sharing fails, shown in the notice for diagnosis
 async function shareFile() {
+  shareError = "";
   try {
     // Keep the title: without it, sharing to WhatsApp on Android stopped working (versions
     // 15 to 18). WhatsApp on Android shows it as the caption next to the file.
     await navigator.share({ files: shareFiles, title: shareFiles[0].name });
     return "shared";
   } catch (e) {
+    shareError = `${e && e.name}: ${e && e.message}`;
     if (e && e.name === "AbortError") return "closed";
     if (e && e.name === "NotAllowedError") return "blocked";
     return "failed";
@@ -743,10 +747,22 @@ async function shareFile() {
 const readyDlg = $("#readyDlg");
 function saveInstead(title, kind = "bad") {
   shareFiles.forEach(f => directDownload(f, f.name));
-  showNotice(kind, title, `<p>קובץ ה-PDF נשמר בהורדות של המכשיר. שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`);
+  showNotice(kind, title, `<p>קובץ ה-PDF נשמר בהורדות של המכשיר. שליחה לקבוצת הוואטסאפ:</p>${sendSteps}` + techInfo());
+}
+// Small print for diagnosing a failed share from a screenshot.
+function techInfo() {
+  const f = shareFiles[0];
+  const ua = (navigator.userAgent.match(/Android [\d.]+|iPhone OS [\d_]+|Windows NT [\d.]+/) || [""])[0] +
+    " " + (navigator.userAgent.match(/(Chrome|CriOS|SamsungBrowser|Version)\/[\d.]+/) || [""])[0];
+  return `<p class="tech" dir="ltr">${esc([
+    "share: " + (shareError || "-"),
+    "canShare: " + (navigator.canShare ? "yes" : "no") + ", share: " + (navigator.share ? "yes" : "no"),
+    f ? `file: ${f.name.length} chars, ${Math.round(f.size / 1024)} KB, ${f.type}` : "file: -",
+    "browser: " + ua,
+  ].join(" | "))}</p>`;
 }
 function offerShare(text) {
-  showNotice("ok", "הדוח מוכן", `<p>${text}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שיתוף</button></div>`);
+  showNotice("ok", "הדוח מוכן", `<p>${text}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שיתוף</button></div>` + techInfo());
   $("#shareBtn").addEventListener("click", openShare);
 }
 // Two steps on purpose: "סיימתי" makes the PDF, then the "שיתוף" button in the "הדוח מוכן"
@@ -777,7 +793,7 @@ $("#pdfBtn").addEventListener("click", async () => {
     shareFiles = shareable([pdf]); // CSV: remove this line when turning the CSV back on
     // CSV: a CSV the phone refuses to share also needs saving: if (!shareFiles.includes(csv)) directDownload(csv, csv.name);
     if (!shareFiles.length) { // this browser can't share files at all
-      shareFiles = [pdf];
+      shareFiles = [pdf]; shareError = "not tried (canShare said no)";
       return saveInstead("הקובץ מוכן", "ok");
     }
     readyDlg.classList.add("on"); $("#readyYes").focus();
