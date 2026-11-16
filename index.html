@@ -290,7 +290,7 @@
 <div class="bar">
   <div class="wrap">
     <button type="button" class="btn secondary" id="clearBtn">ניקוי</button>
-    <button type="button" class="btn primary" id="pdfBtn">שיתוף</button>
+    <button type="button" class="btn primary" id="pdfBtn">סיימתי</button>
   </div>
 </div>
 
@@ -308,10 +308,10 @@
 <div class="dlg" id="readyDlg" role="dialog" aria-modal="true" aria-labelledby="readyTitle">
   <div class="box">
     <h2 id="readyTitle">הדוח מוכן</h2>
-    <p style="margin:0">לוחצים כדי לפתוח את חלון השיתוף ולבחור את וואטסאפ.</p>
+    <p style="margin:0">לוחצים על "שיתוף" ובוחרים את וואטסאפ.</p>
     <div class="actions">
       <button type="button" class="btn secondary" id="readyNo">ביטול</button>
-      <button type="button" class="btn primary" id="readyYes">פתיחת השיתוף</button>
+      <button type="button" class="btn primary" id="readyYes">שיתוף</button>
     </div>
   </div>
 </div>
@@ -658,7 +658,7 @@ async function makePdfBlob() {
 /* ---------- Data file (CSV) for the office: TURNED OFF ---------- */
 // Only the PDF is sent for now. The CSV code is kept here, commented out, for later.
 // To turn it back on: remove the "// " at the start of the lines below, and of the lines
-// marked "CSV" in the "שיתוף" button code further down.
+// marked "CSV" in the "סיימתי" button code further down.
 //
 // A header row and one row for this report. Every report has the same columns (questions
 // are matched by title across התקנה and קריאת שירות), so the office can stack the files
@@ -746,19 +746,19 @@ function saveInstead(title, kind = "bad") {
   showNotice(kind, title, `<p>קובץ ה-PDF נשמר בהורדות של המכשיר. שליחה לקבוצת הוואטסאפ:</p>${sendSteps}`);
 }
 function offerShare(text) {
-  showNotice("ok", "הדוח מוכן", `<p>${text}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">פתיחת השיתוף</button></div>`);
-  $("#shareBtn").addEventListener("click", () => openShare(false));
+  showNotice("ok", "הדוח מוכן", `<p>${text}</p><div class="actions"><button type="button" class="btn primary" id="shareBtn">שיתוף</button></div>`);
+  $("#shareBtn").addEventListener("click", openShare);
 }
-// Phones open the share sheet only within a few seconds of a tap, and making the PDF can
-// take longer than that. When the phone says no, the "הדוח מוכן" window asks for one more
-// tap, which opens the sheet right away.
-async function openShare(firstTry) {
+// Two steps on purpose: "סיימתי" makes the PDF, then the "שיתוף" button in the "הדוח מוכן"
+// window opens the share sheet. Phones open the sheet only within a few seconds of a tap,
+// and making the PDF can take longer, so the share gets a fresh tap of its own once the
+// file is ready.
+async function openShare() {
   const r = await shareFile();
-  if (r === "blocked" && firstTry) { readyDlg.classList.add("on"); $("#readyYes").focus(); return; }
   if (r === "blocked" || r === "failed") return saveInstead("השיתוף לא נפתח");
   offerShare(r === "shared" ? "לא נשלח? אפשר לפתוח שוב את השיתוף." : "השיתוף נסגר בלי שליחה. אפשר לפתוח אותו שוב:");
 }
-$("#readyYes").addEventListener("click", () => { readyDlg.classList.remove("on"); openShare(false); });
+$("#readyYes").addEventListener("click", () => { readyDlg.classList.remove("on"); openShare(); });
 $("#readyNo").addEventListener("click", () => {
   readyDlg.classList.remove("on");
   offerShare("אפשר לפתוח את השיתוף כשמוכנים:");
@@ -780,19 +780,14 @@ $("#pdfBtn").addEventListener("click", async () => {
       shareFiles = [pdf];
       return saveInstead("הקובץ מוכן", "ok");
     }
-    // The tap has already expired (a slow phone): skip straight to the "הדוח מוכן" window.
-    if (navigator.userActivation && !navigator.userActivation.isActive) {
-      readyDlg.classList.add("on"); $("#readyYes").focus();
-      return;
-    }
-    await openShare(true);
+    readyDlg.classList.add("on"); $("#readyYes").focus();
   } catch (e) {
     showNotice("bad", "לא הצלחנו ליצור את הקובץ",
       e && e.message === "lib"
         ? "<p>רכיב יצירת ה-PDF לא נטען. בדקו את החיבור לאינטרנט ורעננו את הדף. הנתונים שמילאתם יימחקו ברענון.</p>"
         : "<p>נסו שוב. אם זה חוזר, רעננו את הדף ומלאו מחדש.</p>");
   } finally {
-    btn.disabled = false; btn.textContent = "שיתוף";
+    btn.disabled = false; btn.textContent = "סיימתי";
   }
 });
 
